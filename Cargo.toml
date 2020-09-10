@@ -3,6 +3,9 @@ name = "mila"
 version = "0.1.0"
 authors = ["thane98"]
 edition = "2018"
+description = "A library for interacting with common formats from FE9-FE15. "
+license-file = "LICENSE"
+repository = "https://github.com/thane98/mila/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
