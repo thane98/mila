@@ -171,6 +171,16 @@ impl BinArchive {
         Ok(archive)
     }
 
+    pub fn get_labels(&self) -> Vec<(usize, String)> {
+        let mut keys: Vec<(usize, String)> = Vec::new();
+        for (k, v) in &self.labels {
+            for s in v {
+                keys.push((*k, s.clone()));
+            }
+        }
+        keys
+    }
+
     pub fn size(&self) -> usize {
         self.data.len()
     }
@@ -575,6 +585,25 @@ mod tests {
         let archive2 = BinArchive::new();
         assert_eq!(archive.size(), 4);
         assert_eq!(archive2.size(), 0);
+    }
+
+    #[test]
+    fn get_labels() {
+        let labels = vec![
+            "Owain".to_string(),
+            "Severa".to_string()
+        ];
+        let archive = BinArchive {
+            data: vec![0, 0, 0, 0, 0, 0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: hashmap! {
+                0 => vec!["Test".to_string()],
+                4 => labels.clone()
+            },
+        };
+        let labels = archive.get_labels();
+        assert_eq!(labels, vec![(0, "Test".to_string()), (4, "Owain".to_string()), (4, "Severa".to_string())]);
     }
 
     #[test]
