@@ -1,0 +1,82 @@
+Number = { ASCII_DIGIT+ }
+String = { (!("$" | "|") ~ ANY)+ }
+CommaDelimitedString = { (!("$" | "|" | ",") ~ ANY)+ }
+Delimiter = _{ "|" }
+StringList = { 
+	((CommaDelimitedString ~ ",")* ~ CommaDelimitedString)
+	| (CommaDelimitedString ~ ",")+
+}
+
+Newline = { NEWLINE }
+PlayerMentioned = { "$a" }
+Color = { "$c" ~ Number ~ "," ~ Number ~ "," ~ Number ~ "," ~ Number }
+SetConversationType = { "$t" ~ Number }
+SetEmotion = { "$E" ~ StringList }
+GenderDependentMessage = { "$G" ~ CommaDelimitedString ~ "," ~ CommaDelimitedString }
+Pause = { "$k" }
+ClearMessage = { "$p" }
+CutsceneAction = { "$b" ~ String }
+Wait = { "$w" ~ Number }
+MarriageScene = { "$l" ~ String }
+VisualEffect = { "$Tc" ~ String }
+FadeWhite = { "$Fw" ~ Number }
+FadeOut = { "$Fo" ~ Number }
+FadeIn = { "$Fi" ~ Number }
+SetTalkWindowPanicked = { "$Wv" }
+Synchronize = { "$Wa" }
+DeleteSpeaker = { "$Wd" }
+SetScrollIn = { "$Wc" }
+PrintAvatar = { "$Nu" }
+ConditionalFid = { "$VF" ~ String }
+Alias = { "$VN" ~ String }
+SetSpeaker = { "$Ws" ~ String }
+LoadAssets = { "$Wm" ~ String }
+PlayVoice = { "$Svp" ~ String }
+SoundEffect = { "$Ssp" ~ String }
+PlayMusic = { "$Sbp" ~ CommaDelimitedString ~ "," ~ Number }
+StopMusic = { "$Sbs" ~ Number }
+SetVolume = { "$Sbv" ~ CommaDelimitedString ~ "," ~ Number }
+DramaticLine = { "$Sre" ~ Number }
+DramaticMusic = { "$Srp" ~ CommaDelimitedString ~ "," ~ Number }
+PlayRamp = { "$Slp" ~ CommaDelimitedString ~ "," ~ Number }
+StopRamp = { "$Sls" ~ CommaDelimitedString ~ "," ~ Number }
+SetRampVolume = { "$Slv" ~ CommaDelimitedString ~ "," ~ Number ~ "," ~ Number }
+Print = { String }
+
+Command = {
+    Newline
+    | PlayerMentioned
+    | Wait
+    | CutsceneAction
+    | ClearMessage
+    | Pause
+    | GenderDependentMessage
+    | SetEmotion
+    | SetConversationType
+    | Color
+    | VisualEffect
+    | FadeWhite
+    | FadeOut
+    | FadeIn
+    | SetTalkWindowPanicked
+    | Synchronize
+    | DeleteSpeaker
+    | SetScrollIn
+    | PrintAvatar
+    | ConditionalFid
+    | Alias
+    | SetSpeaker
+    | LoadAssets
+    | SetRampVolume
+    | StopRamp
+    | PlayRamp
+    | DramaticMusic
+    | DramaticLine
+    | SetVolume
+    | StopMusic
+    | PlayMusic
+    | SoundEffect
+    | PlayVoice
+    | Print
+}
+Message = { SOI ~ (Command ~ Delimiter?)+ ~ EOI }

@@ -1,3 +1,4 @@
+mod asset_binary;
 mod bin_archive;
 mod bin_streams;
 mod compression_format;
@@ -13,6 +14,7 @@ mod text_archive;
 #[cfg(test)]
 mod utils;
 
+pub use asset_binary::{AssetBinary, AssetSpec};
 pub use bin_archive::BinArchive;
 pub use bin_streams::{BinArchiveReader, BinArchiveWriter};
 pub use compression_format::CompressionFormat;
