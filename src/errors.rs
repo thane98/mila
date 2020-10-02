@@ -44,3 +44,61 @@ pub enum ArchiveError {
     #[error(transparent)]
     EncodingStringsError(#[from] EncodedStringsError),
 }
+
+
+#[derive(Error, Debug)]
+pub enum LocalizationError {
+    #[error("Unsupported language.")]
+    UnsupportedLanguage,
+
+    #[error("Expected parent in path '{0}'.")]
+    MissingParent(std::path::PathBuf),
+
+    #[error("Expected file name in path '{0}'.")]
+    MissingFileName(std::path::PathBuf),
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum LayeredFilesystemError {
+    #[error("Cannot create a filesystem with no layers.")]
+    NoLayers,
+
+    #[error("Filesystem contains no writeable layers.")]
+    NoWriteableLayers,
+
+    #[error("File '{0}' does not exist.")]
+    FileNotFound(String),
+
+    #[error("Unsupported game.")]
+    UnsupportedGame,
+
+    #[error(transparent)]
+    LocalizationError(#[from] LocalizationError),
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    CompressionError(#[from] CompressionError),
+
+    #[error(transparent)]
+    ArchiveError(#[from] ArchiveError),
+}
+
+#[derive(Error, Debug)]
+pub enum TextArchiveError {
+    #[error("Malformed text archive - message has no key.")]
+    MissingKey,
+
+    #[error(transparent)]
+    ArchiveError(#[from] crate::ArchiveError),
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    EncodingStringsError(#[from] crate::EncodedStringsError),
+}

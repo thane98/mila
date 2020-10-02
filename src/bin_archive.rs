@@ -178,6 +178,7 @@ impl BinArchive {
                 keys.push((*k, s.clone()));
             }
         }
+        keys.sort();
         keys
     }
 
