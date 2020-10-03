@@ -3,7 +3,7 @@ use crate::{ArchiveError, BinArchive, BinArchiveReader, BinArchiveWriter};
 type Result<T> = std::result::Result<T, ArchiveError>;
 
 // Credits to AmbiguousPresence for the original implementation.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct AssetSpec {
     pub name: Option<String>,
     pub conditional1: Option<String>,
@@ -66,6 +66,21 @@ pub struct AssetSpec {
     pub use_unk6: bool,
     pub on_hit_effect: u32,
     pub use_on_hit_effect: bool,
+    pub unk7: u32,
+    pub use_unk7: bool,
+    pub unk8: u32,
+    pub use_unk8: bool,
+    pub unk9: u32,
+    pub use_unk9: bool,
+
+    pub unk10: u32,
+    pub use_unk10: bool,
+    pub unk11: u32,
+    pub use_unk11: bool,
+    pub unk12: u32,
+    pub use_unk12: bool,
+    pub unk13: u32,
+    pub use_unk13: bool,
 }
 
 fn read_flag_str(
@@ -208,6 +223,34 @@ impl AssetSpec {
             if (flags[5] & 0b10000) != 0 {
                 spec.on_hit_effect = reader.read_u32()?;
                 spec.use_on_hit_effect = true;
+            }
+            if (flags[5] & 0b100000) != 0 {
+                spec.unk7 = reader.read_u32()?;
+                spec.use_unk7 = true;
+            }
+            if (flags[5] & 0b1000000) != 0 {
+                spec.unk8 = reader.read_u32()?;
+                spec.use_unk8 = true;
+            }
+            if (flags[5] & 0b10000000) != 0 {
+                spec.unk9 = reader.read_u32()?;
+                spec.use_unk9 = true;
+            }
+            if (flags[6] & 0b1) != 0 {
+                spec.unk10 = reader.read_u32()?;
+                spec.use_unk10 = true;
+            }
+            if (flags[6] & 0b10) != 0 {
+                spec.unk11 = reader.read_u32()?;
+                spec.use_unk11 = true;
+            }
+            if (flags[6] & 0b100) != 0 {
+                spec.unk12 = reader.read_u32()?;
+                spec.use_unk12 = true;
+            }
+            if (flags[6] & 0b1000) != 0 {
+                spec.unk13 = reader.read_u32()?;
+                spec.use_unk13 = true;
             }
         }
 
@@ -377,8 +420,16 @@ impl AssetSpec {
         flags[5] |= if !self.use_unk5 { 0 } else { 0b100 };
         flags[5] |= if !self.use_unk6 { 0 } else { 0b1000 };
         flags[5] |= if !self.use_on_hit_effect { 0 } else { 0b10000 };
+        flags[5] |= if !self.use_unk7 { 0 } else { 0b100000 };
+        flags[5] |= if !self.use_unk8 { 0 } else { 0b1000000 };
+        flags[5] |= if !self.use_unk9 { 0 } else { 0b10000000 };
 
-        if flags[4] == 0 && flags[5] == 0 {
+        flags[6] |= if !self.use_unk10 { 0 } else { 0b1 };
+        flags[6] |= if !self.use_unk11 { 0 } else { 0b10 };
+        flags[6] |= if !self.use_unk12 { 0 } else { 0b100 };
+        flags[6] |= if !self.use_unk13 { 0 } else { 0b1000 };
+
+        if flags[4] == 0 && flags[5] == 0 && flags[6] == 0 {
             flags.resize(4, 0);
         }
         let mut size = flags.len() + 4;
@@ -469,6 +520,27 @@ impl AssetSpec {
             }
             if self.use_on_hit_effect {
                 writer.write_u32(self.on_hit_effect)?;
+            }
+            if self.use_unk7 {
+                writer.write_u32(self.unk7)?;
+            }
+            if self.use_unk8 {
+                writer.write_u32(self.unk8)?;
+            }
+            if self.use_unk9 {
+                writer.write_u32(self.unk9)?;
+            }
+            if self.use_unk10 {
+                writer.write_u32(self.unk10)?;
+            }
+            if self.use_unk11 {
+                writer.write_u32(self.unk11)?;
+            }
+            if self.use_unk12 {
+                writer.write_u32(self.unk12)?;
+            }
+            if self.use_unk13 {
+                writer.write_u32(self.unk13)?;
             }
         }
         Ok(())
