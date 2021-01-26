@@ -1,3 +1,6 @@
+use strum_macros::EnumString;
+
+#[derive(Copy, Clone, Debug, EnumString)]
 pub enum Language {
     EnglishNA,
     EnglishEU,

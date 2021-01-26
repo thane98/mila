@@ -20,6 +20,10 @@ impl<'a> BinArchiveReader<'a> {
         }
     }
 
+    pub fn archive(&self) -> &'a BinArchive {
+        self.archive
+    }
+
     pub fn seek(&mut self, position: usize) {
         self.position = position;
     }
@@ -109,6 +113,39 @@ impl<'a> BinArchiveWriter<'a> {
             archive,
             position
         }
+    }
+
+    pub fn size(&self) -> usize {
+        self.archive.size()
+    }
+
+    pub fn seek(&mut self, position: usize) {
+        self.position = position;
+    }
+
+    pub fn skip(&mut self, amount: usize) {
+        self.position += amount;
+    }
+
+    pub fn tell(&self) -> usize {
+        return self.position;
+    }
+
+    pub fn length(&self) -> usize {
+        return self.archive.size()
+    }
+
+    pub fn allocate(&mut self, amount: usize) -> Result<()> {
+        if self.position == self.archive.size() {
+            self.archive.allocate_at_end(amount);
+        } else {
+            self.archive.allocate(self.position, amount)?;
+        }
+        Ok(())
+    }
+
+    pub fn allocate_at_end(&mut self, amount: usize) {
+        self.archive.allocate_at_end(amount)
     }
 
     pub fn write_u8(&mut self, value: u8) -> Result<()> {

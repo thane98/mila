@@ -1,11 +1,28 @@
 use crate::errors::CompressionError;
+use crate::LZ13CompressionFormat;
 
 type Result<T> = std::result::Result<T, CompressionError>;
 
-pub trait CompressionFormat {
-    fn is_compressed_filename(&self, filename: &str) -> bool;
+pub enum CompressionFormat {
+    LZ13(LZ13CompressionFormat),
+}
 
-    fn compress(&self, bytes: &[u8]) -> Result<Vec<u8>>;
+impl CompressionFormat {
+    pub fn is_compressed_filename(&self, filename: &str) -> bool {
+        match self {
+            CompressionFormat::LZ13(c) => c.is_compressed_filename(filename),
+        }
+    }
 
-    fn decompress(&self, bytes: &[u8]) -> Result<Vec<u8>>;
+    pub fn compress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+        match self {
+            CompressionFormat::LZ13(c) => c.compress(bytes),
+        }
+    }
+
+    pub fn decompress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+        match self {
+            CompressionFormat::LZ13(c) => c.decompress(bytes),
+        }
+    }
 }

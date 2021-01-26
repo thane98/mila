@@ -1,5 +1,4 @@
 use crate::errors::CompressionError;
-use crate::compression_format::CompressionFormat;
 use nintendo_lz::decompress_arr;
 use std::cmp::min;
 
@@ -40,20 +39,21 @@ fn get_occurrence_length(
 
 pub struct LZ13CompressionFormat;
 
-impl CompressionFormat for LZ13CompressionFormat {
-    fn is_compressed_filename(&self, filename: &str) -> bool {
+impl LZ13CompressionFormat {
+    pub fn is_compressed_filename(&self, filename: &str) -> bool {
         filename.ends_with(".lz")
     }
 
-    fn compress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+    pub fn compress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
         // First, create the header.
         let mut result: Vec<u8> = Vec::new();
         let length = bytes.len();
+        let lz13_length = bytes.len() + 1;
         result.reserve(9 + length + ((length - 1) >> 3)); // For performance, reserve space to avoid resizing.
         result.push(0x13);
-        result.push(((length & 0xFF) + 1) as u8);
-        result.push(((length >> 8) & 0xFF) as u8);
-        result.push(((length >> 16) & 0xFF) as u8);
+        result.push((lz13_length & 0xFF) as u8);
+        result.push(((lz13_length >> 8) & 0xFF) as u8);
+        result.push(((lz13_length >> 16) & 0xFF) as u8);
         result.push(0x11);
         result.push((length & 0xFF) as u8);
         result.push(((length >> 8) & 0xFF) as u8);
@@ -110,7 +110,7 @@ impl CompressionFormat for LZ13CompressionFormat {
         Ok(result)
     }
 
-    fn decompress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+    pub fn decompress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
         if bytes[0] == 0 {
             let mut result: Vec<u8> = Vec::new();
             result.extend_from_slice(&bytes[4..]);

@@ -76,6 +76,9 @@ pub enum LayeredFilesystemError {
     UnsupportedGame,
 
     #[error(transparent)]
+    PatternError(#[from] glob::PatternError),
+
+    #[error(transparent)]
     LocalizationError(#[from] LocalizationError),
 
     #[error(transparent)]
@@ -86,6 +89,15 @@ pub enum LayeredFilesystemError {
 
     #[error(transparent)]
     ArchiveError(#[from] ArchiveError),
+
+    #[error(transparent)]
+    TextArchiveError(#[from] TextArchiveError),
+
+    #[error(transparent)]
+    TextureParseError(#[from] TextureParseError),
+
+    #[error(transparent)]
+    ArcError(#[from] ArcError),
 }
 
 #[derive(Error, Debug)]
@@ -101,4 +113,55 @@ pub enum TextArchiveError {
 
     #[error(transparent)]
     EncodingStringsError(#[from] crate::EncodedStringsError),
+}
+
+#[derive(Error, Debug)]
+pub enum DialogueError {
+    #[error("{0}")]
+    ParseError(String),
+
+    #[error("Unexpected rule.")]
+    BadRule,
+
+    #[error("An undefined error occurred.")]
+    UndefinedError
+}
+
+#[derive(Error, Debug)]
+pub enum TextureDecodeError {
+    #[error("Unsupported format.")]
+    UnsupportedFormat,
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum TextureParseError {
+    #[error("Invalid magic number.")]
+    BadMagicNumber,
+
+    #[error("Failed to decode text.")]
+    BadText,
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    TextureDecodeError(#[from] TextureDecodeError),
+}
+
+#[derive(Error, Debug)]
+pub enum ArcError {
+    #[error("Arc entry has no name.")]
+    MissingName,
+
+    #[error("Arc has no count label.")]
+    NoCount,
+
+    #[error("Arc has no info label.")]
+    NoInfo,
+
+    #[error(transparent)]
+    ArchiveError(#[from] ArchiveError),
 }

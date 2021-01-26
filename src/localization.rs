@@ -21,21 +21,36 @@ fn get_file_name(path: &Path) -> Result<String> {
     }
 }
 
-pub trait PathLocalizer {
-    fn localize(&self, path: &str, language: &Language) -> Result<String>;
+pub struct NoOpPathLocalizer;
+pub struct FE13PathLocalizer;
+pub struct FE14PathLocalizer;
+pub struct FE15PathLocalizer;
+
+pub enum PathLocalizer {
+    NoOp(NoOpPathLocalizer),
+    FE13(FE13PathLocalizer),
+    FE14(FE14PathLocalizer),
+    FE15(FE15PathLocalizer),
 }
 
-pub struct NoOpPathLocalizer;
+impl PathLocalizer {
+    pub fn localize(&self, path: &str, language: &Language) -> Result<String> {
+        match self {
+            PathLocalizer::NoOp(p) => p.localize(path),
+            PathLocalizer::FE13(p) => p.localize(path, language),
+            PathLocalizer::FE14(p) => p.localize(path, language),
+            PathLocalizer::FE15(p) => p.localize(path, language),
+        }
+    }
+}
 
-impl PathLocalizer for NoOpPathLocalizer {
-    fn localize(&self, path: &str, _: &Language) -> Result<String> {
+impl NoOpPathLocalizer {
+    fn localize(&self, path: &str) -> Result<String> {
         Ok(path.to_string())
     }
 }
 
-pub struct FE13PathLocalizer;
-
-impl PathLocalizer for FE13PathLocalizer {
+impl FE13PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);
@@ -59,9 +74,7 @@ impl PathLocalizer for FE13PathLocalizer {
     }
 }
 
-pub struct FE14PathLocalizer;
-
-impl PathLocalizer for FE14PathLocalizer {
+impl FE14PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);
@@ -85,9 +98,7 @@ impl PathLocalizer for FE14PathLocalizer {
     }
 }
 
-pub struct FE15PathLocalizer;
-
-impl PathLocalizer for FE15PathLocalizer {
+impl FE15PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);

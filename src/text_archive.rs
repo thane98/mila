@@ -26,6 +26,7 @@ fn write_utf_16_string(bytes: &mut Vec<u8>, string: &str) -> Result<()> {
 pub struct TextArchive {
     title: String,
     entries: LinkedHashMap<String, String>,
+    dirty: bool,
 }
 
 impl TextArchive {
@@ -33,7 +34,12 @@ impl TextArchive {
         TextArchive {
             title: "".to_string(),
             entries: LinkedHashMap::new(),
+            dirty: false,
         }
+    }
+
+    pub fn get_entries(&self) -> &LinkedHashMap<String, String> {
+        &self.entries
     }
 
     pub fn from_bytes(raw_archive: &[u8]) -> Result<Self> {
@@ -58,7 +64,7 @@ impl TextArchive {
         Ok(text_archive)
     }
 
-    pub fn serialize(&self) -> Result<BinArchive> {
+    pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut bytes: Vec<u8> = Vec::new();
         let mut label_info: Vec<(&String, usize)> = Vec::new();
         write_shift_jis_string(&mut bytes, &self.title)?;
@@ -73,7 +79,8 @@ impl TextArchive {
         for (label, address) in label_info {
             archive.write_label(address, label)?;
         }
-        Ok(archive)
+        let bytes = archive.serialize()?;
+        Ok(bytes)
     }
 
     pub fn get_title(&self) -> &str {
@@ -102,6 +109,11 @@ impl TextArchive {
     pub fn set_message(&mut self, key: &str, message: &str) {
         let message = message.replace("\\n", "\n");
         self.entries.insert(key.to_string(), message);
+        self.dirty = true;
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
     }
 }
 
@@ -118,7 +130,7 @@ mod test {
         let text_archive = result.unwrap();
         let result = text_archive.serialize();
         assert!(result.is_ok());
-        let serialized_bytes = result.unwrap().serialize().unwrap();
+        let serialized_bytes = result.unwrap();
         assert_eq!(serialized_bytes, bytes);
     }
 
@@ -138,6 +150,7 @@ mod test {
     fn set_message() {
         let mut text_archive = TextArchive::new();
         text_archive.set_message("my_key", "My message\\nhas newlines\\n.");
+        assert!(text_archive.is_dirty());
         let message = text_archive.entries.get("my_key");
         assert!(message.is_some());
         assert_eq!(message.unwrap(), "My message\nhas newlines\n.");

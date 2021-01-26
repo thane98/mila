@@ -1,17 +1,32 @@
-use crate::errors::LayeredFilesystemError;
+use crate::{arc, bch, cgfx, ctpk, LayeredFilesystemError, TextArchive, Texture};
 use crate::{
     BinArchive, CompressionFormat, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, Game,
     LZ13CompressionFormat, Language, PathLocalizer,
 };
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 type Result<T> = std::result::Result<T, LayeredFilesystemError>;
 
 pub struct LayeredFilesystem {
     layers: Vec<String>,
-    compression_format: Box<dyn CompressionFormat>,
-    path_localizer: Box<dyn PathLocalizer>,
+    compression_format: CompressionFormat,
+    path_localizer: PathLocalizer,
+    game: Game,
     language: Language,
+}
+
+impl Clone for LayeredFilesystem {
+    fn clone(&self) -> Self {
+        LayeredFilesystem::new(self.layers.clone(), self.language, self.game).unwrap()
+    }
+}
+
+fn texture_vec_to_map(textures: Vec<Texture>) -> HashMap<String, Texture> {
+    textures
+        .into_iter()
+        .map(|t| (t.filename.clone(), t))
+        .collect()
 }
 
 impl LayeredFilesystem {
@@ -19,7 +34,7 @@ impl LayeredFilesystem {
         if layers.is_empty() {
             return Err(LayeredFilesystemError::NoLayers);
         }
-        let compression_format: Box<dyn CompressionFormat> = match game {
+        let compression_format: CompressionFormat = match game {
             Game::FE9 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
@@ -32,11 +47,11 @@ impl LayeredFilesystem {
             Game::FE12 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
-            Game::FE13 => Box::new(LZ13CompressionFormat {}),
-            Game::FE14 => Box::new(LZ13CompressionFormat {}),
-            Game::FE15 => Box::new(LZ13CompressionFormat {}),
+            Game::FE13 => CompressionFormat::LZ13(LZ13CompressionFormat {}),
+            Game::FE14 => CompressionFormat::LZ13(LZ13CompressionFormat {}),
+            Game::FE15 => CompressionFormat::LZ13(LZ13CompressionFormat {}),
         };
-        let path_localizer: Box<dyn PathLocalizer> = match game {
+        let path_localizer: PathLocalizer = match game {
             Game::FE9 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
@@ -49,16 +64,56 @@ impl LayeredFilesystem {
             Game::FE12 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
-            Game::FE13 => Box::new(FE13PathLocalizer {}),
-            Game::FE14 => Box::new(FE14PathLocalizer {}),
-            Game::FE15 => Box::new(FE15PathLocalizer {}),
+            Game::FE13 => PathLocalizer::FE13(FE13PathLocalizer {}),
+            Game::FE14 => PathLocalizer::FE14(FE14PathLocalizer {}),
+            Game::FE15 => PathLocalizer::FE15(FE15PathLocalizer {}),
         };
+
+        let mut canonical_layers: Vec<String> = Vec::new();
+        for layer in &layers {
+            canonical_layers.push(dunce::canonicalize(layer)?.display().to_string());
+        }
+
         Ok(LayeredFilesystem {
-            layers,
+            layers: canonical_layers,
             compression_format,
             path_localizer,
+            game,
             language,
         })
+    }
+
+    pub fn list(&self, path: &str, glob: Option<&str>) -> Result<Vec<String>> {
+        let mut result: HashSet<String> = HashSet::new();
+        for layer in &self.layers {
+            // TODO: Instead of eating the error, check if dir exists before listing.
+            match self.list_dir(layer, path, glob.clone()) {
+                Ok(paths) => result.extend(paths.into_iter()),
+                Err(_) => {}
+            }
+        }
+        let mut result: Vec<String> = result.into_iter().collect();
+        result.sort();
+        Ok(result)
+    }
+
+    fn list_dir(&self, layer: &str, subdir: &str, glob: Option<&str>) -> Result<Vec<String>> {
+        // TODO: Clean up this mess.
+        let mut layer_str = String::new();
+        layer_str.push_str(layer);
+        layer_str.push(std::path::MAIN_SEPARATOR);
+        let mut path = PathBuf::new();
+        path.push(layer);
+        path.push(subdir);
+        let mut canonical = dunce::canonicalize(path)?.display().to_string();
+        canonical.push(std::path::MAIN_SEPARATOR);
+
+        let pattern = if let Some(p) = glob { p } else { "**/*" };
+        let pattern = format!("{}{}", canonical, pattern);
+        Ok(glob::glob(&pattern)?
+            .filter_map(|r| r.ok())
+            .map(|p| p.display().to_string().replace(&layer_str, ""))
+            .collect())
     }
 
     pub fn read(&self, path: &str, localized: bool) -> Result<Vec<u8>> {
@@ -81,10 +136,49 @@ impl LayeredFilesystem {
         Err(LayeredFilesystemError::FileNotFound(actual_path))
     }
 
+    pub fn read_arc(&self, path: &str, localized: bool) -> Result<HashMap<String, Vec<u8>>> {
+        let bytes = self.read(path, localized)?;
+        let arc = arc::from_bytes(&bytes)?;
+        Ok(arc)
+    }
+
     pub fn read_archive(&self, path: &str, localized: bool) -> Result<BinArchive> {
         let bytes = self.read(path, localized)?;
         let archive = BinArchive::from_bytes(&bytes)?;
         Ok(archive)
+    }
+
+    pub fn read_text_archive(&self, path: &str, localized: bool) -> Result<TextArchive> {
+        let bytes = self.read(path, localized)?;
+        let archive = TextArchive::from_bytes(&bytes)?;
+        Ok(archive)
+    }
+
+    pub fn read_bch_textures(
+        &self,
+        path: &str,
+        localized: bool,
+    ) -> Result<HashMap<String, Texture>> {
+        let bytes = self.read(path, localized)?;
+        Ok(texture_vec_to_map(bch::read(&bytes)?))
+    }
+
+    pub fn read_ctpk_textures(
+        &self,
+        path: &str,
+        localized: bool,
+    ) -> Result<HashMap<String, Texture>> {
+        let bytes = self.read(path, localized)?;
+        Ok(texture_vec_to_map(ctpk::read(&bytes)?))
+    }
+
+    pub fn read_cgfx_textures(
+        &self,
+        path: &str,
+        localized: bool,
+    ) -> Result<HashMap<String, Texture>> {
+        let bytes = self.read(path, localized)?;
+        Ok(texture_vec_to_map(cgfx::read(&bytes)?))
     }
 
     pub fn write(&self, path: &str, bytes: &[u8], localized: bool) -> Result<()> {
@@ -116,11 +210,45 @@ impl LayeredFilesystem {
         let bytes = archive.serialize()?;
         self.write(path, &bytes, localized)
     }
+
+    pub fn write_text_archive(
+        &self,
+        path: &str,
+        archive: &TextArchive,
+        localized: bool,
+    ) -> Result<()> {
+        let bytes = archive.serialize()?;
+        self.write(path, &bytes, localized)
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn list() {
+        // TODO: Current assertions are primitive.
+        //       In the future, we should actually check the paths we get back.
+        let mut test_dir_1 = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        test_dir_1.push("resources/test/FSListTest1");
+        let mut test_dir_2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        test_dir_2.push("resources/test/FSListTest2");
+        let fs = LayeredFilesystem::new(
+            vec![
+                test_dir_1.display().to_string(),
+                test_dir_2.display().to_string(),
+            ],
+            Language::EnglishNA,
+            Game::FE15,
+        )
+        .unwrap();
+        let all_files = fs.list("Subdir/", None).unwrap();
+        let text = fs.list("Subdir/", Some("**/*.txt")).unwrap();
+        assert_eq!(4, all_files.len());
+        assert_eq!(2, text.len());
+    }
 
     #[test]
     fn write_and_read() {
@@ -131,7 +259,11 @@ mod test {
         let layer1_path = layer1.path().to_string_lossy().to_string();
         let layer2_path = layer2.path().to_string_lossy().to_string();
         std::fs::create_dir_all(layer1.path().join("m/@E")).unwrap();
-        std::fs::write(layer1.path().join("m/@E/GameData.txt"), "Original".as_bytes()).unwrap();
+        std::fs::write(
+            layer1.path().join("m/@E/GameData.txt"),
+            "Original".as_bytes(),
+        )
+        .unwrap();
 
         // Create the layered filesystem.
         let fs = LayeredFilesystem::new(
@@ -151,7 +283,7 @@ mod test {
         let result = fs.write("m/GameData.txt", "MyString".as_bytes(), true);
         assert!(result.is_ok());
         assert!(layer2.path().join("m/@E/GameData.txt").exists());
-        
+
         // Test that the layer1 file was NOT overwritten.
         let result = std::fs::read(layer1.path().join("m/@E/GameData.txt"));
         assert!(result.is_ok());
