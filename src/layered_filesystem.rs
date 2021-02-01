@@ -125,7 +125,15 @@ impl LayeredFilesystem {
         for layer in self.layers.iter().rev() {
             let path_buf = Path::new(layer).join(&actual_path);
             if path_buf.exists() {
-                let bytes = std::fs::read(&path_buf)?;
+                let bytes = match std::fs::read(&path_buf) {
+                    Ok(b) => b,
+                    Err(err) => {
+                        return Err(LayeredFilesystemError::ReadError(
+                            actual_path.to_string(),
+                            err.to_string(),
+                        ))
+                    }
+                };
                 if self.compression_format.is_compressed_filename(path) {
                     return Ok(self.compression_format.decompress(&bytes)?);
                 } else {
@@ -199,11 +207,20 @@ impl LayeredFilesystem {
         }
         if self.compression_format.is_compressed_filename(path) {
             let contents = self.compression_format.compress(bytes)?;
-            std::fs::write(path_buf, contents)?;
+            self.write_with_error_handling(path, &contents)
         } else {
-            std::fs::write(path_buf, bytes)?;
+            self.write_with_error_handling(path, bytes)
         }
-        Ok(())
+    }
+
+    fn write_with_error_handling(&self, path: &str, bytes: &[u8]) -> Result<()> {
+        match std::fs::write(path, bytes) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(LayeredFilesystemError::WriteError(
+                path.to_string(),
+                err.to_string(),
+            )),
+        }
     }
 
     pub fn write_archive(&self, path: &str, archive: &BinArchive, localized: bool) -> Result<()> {

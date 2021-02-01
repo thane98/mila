@@ -72,6 +72,12 @@ pub enum LayeredFilesystemError {
     #[error("File '{0}' does not exist.")]
     FileNotFound(String),
 
+    #[error("Failed to read file '{0}' due to nested error: {1}")]
+    ReadError(String, String),
+
+    #[error("Failed to write file '{0}' due to nested error: {1}")]
+    WriteError(String, String),
+
     #[error("Unsupported game.")]
     UnsupportedGame,
 
