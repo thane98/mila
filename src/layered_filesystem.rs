@@ -207,17 +207,17 @@ impl LayeredFilesystem {
         }
         if self.compression_format.is_compressed_filename(path) {
             let contents = self.compression_format.compress(bytes)?;
-            self.write_with_error_handling(path, &contents)
+            self.write_with_error_handling(&path_buf, &contents)
         } else {
-            self.write_with_error_handling(path, bytes)
+            self.write_with_error_handling(&path_buf, bytes)
         }
     }
 
-    fn write_with_error_handling(&self, path: &str, bytes: &[u8]) -> Result<()> {
+    fn write_with_error_handling(&self, path: &PathBuf, bytes: &[u8]) -> Result<()> {
         match std::fs::write(path, bytes) {
             Ok(_) => Ok(()),
             Err(err) => Err(LayeredFilesystemError::WriteError(
-                path.to_string(),
+                path.display().to_string(),
                 err.to_string(),
             )),
         }
