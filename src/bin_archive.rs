@@ -2,7 +2,7 @@ use crate::encoded_strings::{EncodedStringReader, to_shift_jis};
 use crate::errors::ArchiveError;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use linked_hash_map::LinkedHashMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 type Result<T> = std::result::Result<T, ArchiveError>;
@@ -553,6 +553,12 @@ impl BinArchive {
         }
         None
     }
+
+    pub fn pointer_destinations(&self) -> HashSet<usize> {
+        self.pointers.values()
+            .map(|v| *v)
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -560,7 +566,7 @@ mod tests {
     use super::BinArchive;
     use crate::utils::load_test_file;
     use maplit::hashmap;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn size() {
@@ -1177,6 +1183,25 @@ mod tests {
         assert_eq!(search2.unwrap(), 4);
         assert!(search3.is_some());
         assert_eq!(search3.unwrap(), 0);
+    }
+
+    #[test]
+    fn pointer_destinations() {
+        let archive = BinArchive {
+            data: vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: hashmap! {
+                4 => 0,
+                0 => 4,
+                8 => 0
+            },
+            labels: HashMap::new(),
+        };
+        
+        let mut expected = HashSet::new();
+        expected.insert(0);
+        expected.insert(4);
+        assert_eq!(archive.pointer_destinations(), expected);
     }
 
     #[test]
