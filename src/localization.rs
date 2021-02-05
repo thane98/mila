@@ -21,11 +21,17 @@ fn get_file_name(path: &Path) -> Result<String> {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct NoOpPathLocalizer;
+
+#[derive(Copy, Clone)]
 pub struct FE13PathLocalizer;
+#[derive(Copy, Clone)]
 pub struct FE14PathLocalizer;
+#[derive(Copy, Clone)]
 pub struct FE15PathLocalizer;
 
+#[derive(Copy, Clone)]
 pub enum PathLocalizer {
     NoOp(NoOpPathLocalizer),
     FE13(FE13PathLocalizer),
