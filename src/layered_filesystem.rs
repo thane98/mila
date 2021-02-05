@@ -237,6 +237,11 @@ impl LayeredFilesystem {
         let bytes = archive.serialize()?;
         self.write(path, &bytes, localized)
     }
+
+    pub fn localize(&self, path: &str) -> Result<String> {
+        let localized_path = self.path_localizer.localize(path, &self.language)?;
+        Ok(localized_path)
+    }
 }
 
 #[cfg(test)]
