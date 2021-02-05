@@ -241,6 +241,10 @@ impl LayeredFilesystem {
     pub fn localizer(&self) -> PathLocalizer {
         self.path_localizer
     }
+
+    pub fn language(&self) -> Language {
+        self.language
+    }
 }
 
 #[cfg(test)]
