@@ -559,6 +559,17 @@ impl BinArchive {
             .map(|v| *v)
             .collect()
     }
+
+    pub fn all_labels(&self) -> Vec<(usize, String)> {
+        let mut result: Vec<(usize, String)> = Vec::new();
+        for (k, v) in &self.labels {
+            for label in v {
+                result.push((*k, label.clone()));
+            }
+        }
+        result.sort_by(|a, b| a.0.cmp(&b.0));
+        result
+    }
 }
 
 #[cfg(test)]
@@ -1202,6 +1213,30 @@ mod tests {
         expected.insert(0);
         expected.insert(4);
         assert_eq!(archive.pointer_destinations(), expected);
+    }
+
+    #[test]
+    fn all_labels() {
+        let expected: Vec<(usize, String)> = vec![
+            (0, "test".to_string()),
+            (4, "Owain".to_string()),
+            (4, "Severa".to_string()),
+            (8, "Selena".to_string()),
+        ];
+        let archive = BinArchive {
+            data: vec![0, 0, 0, 0, 0, 0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: hashmap! {
+                0 => vec!["test".to_string()],
+                4 => vec![
+                    "Owain".to_string(),
+                    "Severa".to_string(),
+                ],
+                8 => vec!["Selena".to_string()]
+            },
+        };
+        assert_eq!(archive.all_labels(), expected);
     }
 
     #[test]
