@@ -1,6 +1,6 @@
 use strum_macros::EnumString;
 
-#[derive(Copy, Clone, Debug, EnumString)]
+#[derive(PartialEq, Copy, Clone, Debug, EnumString)]
 pub enum Game {
     FE9,
     FE10,
