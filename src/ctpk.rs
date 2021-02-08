@@ -1,7 +1,7 @@
 use crate::texture::Texture;
 use crate::{texture_decoder, TextureParseError};
 use byteorder::{LittleEndian, ReadBytesExt};
-use encoding_rs::UTF_8;
+use encoding_rs::SHIFT_JIS;
 use std::io::prelude::BufRead;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
@@ -102,7 +102,7 @@ pub fn read(file: &[u8]) -> Result<Vec<Texture>> {
         let mut filename_buffer: Vec<u8> = Vec::new();
         reader.read_until(0x0, &mut filename_buffer)?;
         filename_buffer.pop(); // Get rid of the null terminator.
-        let (result, _, errors) = UTF_8.decode(filename_buffer.as_slice());
+        let (result, _, errors) = SHIFT_JIS.decode(filename_buffer.as_slice());
         if errors {
             return Err(TextureParseError::BadText);
         }
