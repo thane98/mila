@@ -23,6 +23,9 @@ pub enum EncodedStringsError {
 
 #[derive(Error, Debug)]
 pub enum ArchiveError {
+    #[error("Files do not match at source address '0x{0:X}' other address '0x{1:X}'.")]
+    ComparisonFailure(usize, usize),
+
     #[error("The archive size specified in the header is incorrect.")]
     SizeMismatch,
 

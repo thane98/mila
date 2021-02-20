@@ -1,4 +1,4 @@
-use crate::encoded_strings::{EncodedStringReader, to_shift_jis};
+use crate::encoded_strings::{to_shift_jis, EncodedStringReader};
 use crate::errors::ArchiveError;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use linked_hash_map::LinkedHashMap;
@@ -128,6 +128,50 @@ impl BinArchive {
             pointers: HashMap::new(),
             labels: HashMap::new(),
         }
+    }
+
+    pub fn assert_equal_regions(
+        &self,
+        other: &BinArchive,
+        source_start: usize,
+        other_start: usize,
+        length: usize,
+    ) -> Result<()> {
+        for i in (0..length).step_by(4) {
+            let source_addr = source_start + i;
+            let other_addr = other_start + i;
+
+            // Compare text.
+            if self.read_string(source_addr)? != other.read_string(other_addr)? {
+                return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+            }
+            let mut has_pointer_or_text = self.read_string(source_addr)?.is_some();
+
+            // Compare pointers.
+            // Can't reasonably compare pointer values, so we only look to make sure
+            // that both cells either have or don't have a pointer.
+            match self.read_pointer(source_addr)? {
+                Some(_) => if other.read_pointer(other_addr)?.is_none() {
+                    return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+                } else {
+                    has_pointer_or_text = true;
+                }
+                None => if other.read_pointer(other_addr)?.is_some() {
+                    return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+                }
+            }
+
+            // Compare labels.
+            if self.read_labels(source_addr)? != other.read_labels(other_addr)? {
+                return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+            }
+
+            // If this cell isn't a pointer of some kind, compare bytes.
+            if !has_pointer_or_text && self.read_i32(source_addr)? != other.read_i32(other_addr)? {
+                return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+            }
+        }
+        Ok(())
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
@@ -555,9 +599,7 @@ impl BinArchive {
     }
 
     pub fn pointer_destinations(&self) -> HashSet<usize> {
-        self.pointers.values()
-            .map(|v| *v)
-            .collect()
+        self.pointers.values().map(|v| *v).collect()
     }
 
     pub fn all_labels(&self) -> Vec<(usize, String)> {
@@ -593,11 +635,123 @@ mod tests {
     }
 
     #[test]
+    fn assert_equal_regions_success() {
+        let labels = vec!["Owain".to_string(), "Severa".to_string()];
+        let source = BinArchive {
+            data: vec![5, 0, 0, 1, 8, 0, 0, 0, 12, 0, 0, 0],
+            text: hashmap! {
+                4 => "Test".to_string()
+            },
+            pointers: hashmap! {
+                8 => 4
+            },
+            labels: hashmap! {
+                0 => vec!["Assessment".to_string()],
+                4 => labels.clone()
+            },
+        };
+        let other = BinArchive {
+            data: vec![0, 0, 0, 0, 5, 0, 0, 1, 4, 12, 0, 1, 16, 12, 0, 2],
+            text: hashmap! {
+                8 => "Test".to_string()
+            },
+            pointers: hashmap! {
+                12 => 0
+            },
+            labels: hashmap! {
+                4 => vec!["Assessment".to_string()],
+                8 => labels.clone()
+            },
+        };
+
+        assert!(source.assert_equal_regions(&other, 0, 4, 12).is_ok());
+    }
+
+    #[test]
+    fn assert_equal_regions_bytes_mismatch() {
+        let source = BinArchive {
+            data: vec![0, 0, 0, 0, 12, 1, 8, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: HashMap::new(),
+        };
+        let other = BinArchive {
+            data: vec![12, 1, 7, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: HashMap::new(),
+        };
+
+        assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
+    }
+
+    #[test]
+    fn assert_equal_regions_pointer_mismatch() {
+        let source = BinArchive {
+            data: vec![0, 0, 0, 0, 0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: HashMap::new(),
+        };
+        let other = BinArchive {
+            data: vec![0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: hashmap! {
+                0 => 4
+            },
+            labels: HashMap::new(),
+        };
+
+        assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
+    }
+
+    #[test]
+    fn assert_equal_regions_string_mismatch() {
+        let source = BinArchive {
+            data: vec![0, 0, 0, 0, 0, 0, 0, 0],
+            text: hashmap! {
+                4 => "Test".to_string()
+            },
+            pointers: HashMap::new(),
+            labels: HashMap::new(),
+        };
+        let other = BinArchive {
+            data: vec![0, 0, 0, 0],
+            text: hashmap! {
+                0 => "Exam".to_string()
+            },
+            pointers: HashMap::new(),
+            labels: HashMap::new(),
+        };
+
+        assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
+    }
+
+    #[test]
+    fn assert_equal_regions_label_mismatch() {
+        let source = BinArchive {
+            data: vec![0, 0, 0, 0, 0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: hashmap! {
+                4 => vec!["Severa".to_string()]
+            },
+        };
+        let other = BinArchive {
+            data: vec![0, 0, 0, 0],
+            text: HashMap::new(),
+            pointers: HashMap::new(),
+            labels: hashmap! {
+                0 => vec!["Selena".to_string()]
+            },
+        };
+
+        assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
+    }
+
+    #[test]
     fn get_labels() {
-        let labels = vec![
-            "Owain".to_string(),
-            "Severa".to_string()
-        ];
+        let labels = vec!["Owain".to_string(), "Severa".to_string()];
         let archive = BinArchive {
             data: vec![0, 0, 0, 0, 0, 0, 0, 0, 0],
             text: HashMap::new(),
@@ -608,7 +762,14 @@ mod tests {
             },
         };
         let labels = archive.get_labels();
-        assert_eq!(labels, vec![(0, "Test".to_string()), (4, "Owain".to_string()), (4, "Severa".to_string())]);
+        assert_eq!(
+            labels,
+            vec![
+                (0, "Test".to_string()),
+                (4, "Owain".to_string()),
+                (4, "Severa".to_string())
+            ]
+        );
     }
 
     #[test]
@@ -1208,7 +1369,7 @@ mod tests {
             },
             labels: HashMap::new(),
         };
-        
+
         let mut expected = HashSet::new();
         expected.insert(0);
         expected.insert(4);
@@ -1284,8 +1445,14 @@ mod tests {
         let bytes = load_test_file("Allocate_NoLabelShift.bin");
         let mut archive = BinArchive::from_bytes(&bytes).unwrap();
         assert!(archive.allocate(0x8, 0x10).is_ok());
-        assert_eq!(archive.read_labels(0x8).unwrap().unwrap(), vec!("TEST".to_string()));
-        assert_eq!(archive.read_labels(0x1C).unwrap().unwrap(), vec!("TEST2".to_string()));
+        assert_eq!(
+            archive.read_labels(0x8).unwrap().unwrap(),
+            vec!("TEST".to_string())
+        );
+        assert_eq!(
+            archive.read_labels(0x1C).unwrap().unwrap(),
+            vec!("TEST2".to_string())
+        );
         assert!(archive.read_labels(0xC).unwrap().is_none());
     }
 
