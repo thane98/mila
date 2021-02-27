@@ -144,6 +144,21 @@ impl LayeredFilesystem {
         Err(LayeredFilesystemError::FileNotFound(actual_path))
     }
 
+    pub fn file_exists(&self, path: &str, localized: bool) -> Result<bool> {
+        let actual_path = if localized {
+            self.path_localizer.localize(path, &self.language)?
+        } else {
+            path.to_string()
+        };
+        for layer in self.layers.iter().rev() {
+            let path_buf = Path::new(layer).join(&actual_path);
+            if path_buf.exists() && path_buf.is_file() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn read_arc(&self, path: &str, localized: bool) -> Result<HashMap<String, Vec<u8>>> {
         let bytes = self.read(path, localized)?;
         let arc = arc::from_bytes(&bytes)?;
@@ -251,6 +266,29 @@ impl LayeredFilesystem {
 mod test {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn file_exists() {
+        let mut test_dir_1 = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        test_dir_1.push("resources/test/FSListTest1");
+        let mut test_dir_2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        test_dir_2.push("resources/test/FSListTest2");
+        let fs = LayeredFilesystem::new(
+            vec![
+                test_dir_1.display().to_string(),
+                test_dir_2.display().to_string(),
+            ],
+            Language::EnglishNA,
+            Game::FE15,
+        )
+        .unwrap();
+
+        assert!(fs.file_exists("Subdir/one.bin", false).unwrap());
+        assert!(fs.file_exists("Subdir/two.bin", false).unwrap());
+        assert!(fs.file_exists("Subdir/three.txt", false).unwrap());
+        assert!(fs.file_exists("Subdir/four.txt", false).unwrap());
+        assert!(!fs.file_exists("Subdir/notanactualfile", false).unwrap());
+    }
 
     #[test]
     fn list() {
