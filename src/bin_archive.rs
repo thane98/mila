@@ -587,6 +587,20 @@ impl BinArchive {
         Ok(())
     }
 
+    pub fn truncate(&mut self, address: usize) -> Result<()> {
+        if address >= self.data.len() {
+            return Ok(());
+        }
+        let range = address..self.data.len();
+        self.data.drain(range.clone());
+        for i in range.step_by(4) {
+            self.text.remove(&i);
+            self.labels.remove(&i);
+            self.pointers.remove(&i);
+        }
+        Ok(())
+    }
+
     pub fn find_label_address(&self, target: &str) -> Option<usize> {
         for (address, bucket) in &self.labels {
             for label in bucket {
