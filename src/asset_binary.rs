@@ -111,7 +111,18 @@ fn read_color(reader: &mut BinArchiveReader) -> Result<[u8; 4]> {
     let mut arr: [u8; 4] = [0, 0, 0, 0];
     let bytes = reader.read_bytes(4)?;
     arr.copy_from_slice(&bytes);
+    let tmp = arr[2];
+    arr[2] = arr[0];
+    arr[0] = tmp;
     Ok(arr)
+}
+
+fn write_color(color: &[u8; 4], writer: &mut BinArchiveWriter) -> Result<()> {
+    let mut arr = color.clone();
+    let tmp = arr[2];
+    arr[2] = arr[0];
+    arr[0] = tmp;
+    writer.write_bytes(&arr)
 }
 
 fn count_bits(byte: u8) -> usize {
@@ -489,13 +500,13 @@ impl AssetSpec {
             write_flag_str(&mut writer, &self.clothing_sound)?;
             write_flag_str(&mut writer, &self.voice)?;
             if self.use_hair_color {
-                writer.write_bytes(&self.hair_color)?;
+                write_color(&self.hair_color, &mut writer)?;
             }
             if self.use_skin_color {
-                writer.write_bytes(&self.skin_color)?;
+                write_color(&self.skin_color, &mut writer)?;
             }
             if self.use_weapon_trail_color {
-                writer.write_bytes(&self.weapon_trail_color)?;
+                write_color(&self.weapon_trail_color, &mut writer)?;
             }
             if self.use_model_size {
                 writer.write_f32(self.model_size)?;
