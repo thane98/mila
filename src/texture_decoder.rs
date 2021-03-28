@@ -1,6 +1,6 @@
 use crate::{etc1, TextureDecodeError};
-use std::io::{Seek, SeekFrom, Cursor};
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::io::{Cursor, Seek, SeekFrom};
 
 static CONVERT_5_TO_8: &'static [u8] = &[
     0x00, 0x08, 0x10, 0x18, 0x20, 0x29, 0x31, 0x39, 0x41, 0x4A, 0x52, 0x5A, 0x62, 0x6A, 0x73, 0x7B,
@@ -132,7 +132,7 @@ fn decode_rgba_pixel_data(
                 let x = (TILE_ORDER[pixel] % 8) as usize;
                 let y = (TILE_ORDER[pixel] as usize - x) / 8;
                 let output_index = (tile_x * 8 + x + ((tile_y * 8 + y) * width)) * 4;
-            
+
                 let color = match format {
                     0 => decode_color(cursor.read_u32::<LittleEndian>()?, format),
                     1 => {
@@ -141,7 +141,9 @@ fn decode_rgba_pixel_data(
                         cursor.seek(SeekFrom::Current(-1))?;
                         decode_color(value, format)
                     }
-                    2 | 3 | 4 | 5 => decode_color(cursor.read_u16::<LittleEndian>()? as u32, format),
+                    2 | 3 | 4 | 5 => {
+                        decode_color(cursor.read_u16::<LittleEndian>()? as u32, format)
+                    }
                     6 | 7 | 8 | 9 => decode_color(cursor.read_u8()? as u32, format),
                     _ => decode_color(0, format),
                 };

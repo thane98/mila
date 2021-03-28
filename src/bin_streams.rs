@@ -1,23 +1,20 @@
-use crate::{BinArchive, ArchiveError};
+use crate::{ArchiveError, BinArchive};
 
 type Result<T> = std::result::Result<T, ArchiveError>;
 
 pub struct BinArchiveReader<'a> {
     archive: &'a BinArchive,
-    position: usize
+    position: usize,
 }
 
 pub struct BinArchiveWriter<'a> {
     archive: &'a mut BinArchive,
-    position: usize
+    position: usize,
 }
 
 impl<'a> BinArchiveReader<'a> {
     pub fn new(archive: &'a BinArchive, position: usize) -> Self {
-        BinArchiveReader {
-            archive,
-            position
-        }
+        BinArchiveReader { archive, position }
     }
 
     pub fn archive(&self) -> &'a BinArchive {
@@ -92,7 +89,7 @@ impl<'a> BinArchiveReader<'a> {
     pub fn read_label(&mut self, index: usize) -> Result<Option<String>> {
         Ok(match self.archive.read_labels(index)? {
             Some(bucket) => bucket.first().map(|x| x.to_owned()),
-            None => None
+            None => None,
         })
     }
 
@@ -109,10 +106,7 @@ impl<'a> BinArchiveReader<'a> {
 
 impl<'a> BinArchiveWriter<'a> {
     pub fn new(archive: &'a mut BinArchive, position: usize) -> Self {
-        BinArchiveWriter {
-            archive,
-            position
-        }
+        BinArchiveWriter { archive, position }
     }
 
     pub fn size(&self) -> usize {
@@ -132,7 +126,7 @@ impl<'a> BinArchiveWriter<'a> {
     }
 
     pub fn length(&self) -> usize {
-        return self.archive.size()
+        return self.archive.size();
     }
 
     pub fn allocate(&mut self, amount: usize) -> Result<()> {

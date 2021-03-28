@@ -52,11 +52,12 @@ impl TextArchive {
         let mut text_archive = TextArchive::new();
         text_archive.title = reader.read_shift_jis_string()?;
         while reader.tell() < archive.size() {
-            let labels = reader.read_labels()?
-                .unwrap_or_else(Vec::new);
+            let labels = reader.read_labels()?.unwrap_or_else(Vec::new);
             let message = reader.read_utf_16_string()?;
             match labels.first() {
-                Some(k) => { text_archive.entries.insert(k.clone(), message); },
+                Some(k) => {
+                    text_archive.entries.insert(k.clone(), message);
+                }
                 _ => {}
             }
         }

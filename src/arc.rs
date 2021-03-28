@@ -16,10 +16,10 @@ struct ArcEntry {
 pub fn from_bytes(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
     // Read archive and labels.
     let archive = BinArchive::from_bytes(bytes)?;
-    let count_address = archive.find_label_address("Count")
+    let count_address = archive
+        .find_label_address("Count")
         .ok_or(ArcError::NoCount)?;
-    let info_address = archive.find_label_address("Info")
-        .ok_or(ArcError::NoInfo)?;
+    let info_address = archive.find_label_address("Info").ok_or(ArcError::NoInfo)?;
     let header_padding = if archive.read_u32(0)? == 0 { 0x60 } else { 0 };
 
     // Read metadata
@@ -28,8 +28,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
     let count = reader.read_u32()?;
     reader.seek(info_address);
     for _ in 0..count {
-        let name = reader.read_string()?
-            .ok_or(ArcError::MissingName)?;
+        let name = reader.read_string()?.ok_or(ArcError::MissingName)?;
         let index = reader.read_u32()?;
         let size = reader.read_u32()?;
         let address = reader.read_u32()? + header_padding;
@@ -37,7 +36,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
             name,
             index,
             size,
-            address
+            address,
         });
     }
 
@@ -54,7 +53,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
 #[cfg(test)]
 mod test {
     use crate::utils::load_test_file;
-    
+
     #[test]
     fn arc_from_bytes_test() {
         let raw_arc = load_test_file("ArcTest.arc");

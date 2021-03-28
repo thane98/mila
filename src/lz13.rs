@@ -130,12 +130,12 @@ impl LZ13CompressionFormat {
 mod test {
     use super::*;
     use crate::utils::load_test_file;
-    
+
     #[test]
     fn lz13_decompress_success() {
         let compressed = load_test_file("LZ13Test.bin.lz");
         let decompressed = load_test_file("LZ13Test.bin");
-        let lz13 = LZ13CompressionFormat{};
+        let lz13 = LZ13CompressionFormat {};
         let actual_decompressed = lz13.decompress(&compressed);
         assert!(actual_decompressed.is_ok());
         assert_eq!(actual_decompressed.unwrap(), decompressed);
@@ -145,7 +145,7 @@ mod test {
     fn lz13_compress_success() {
         let compressed = load_test_file("LZ13Test.bin.lz");
         let decompressed = load_test_file("LZ13Test.bin");
-        let lz13 = LZ13CompressionFormat{};
+        let lz13 = LZ13CompressionFormat {};
         let actual_compressed = lz13.compress(&decompressed);
         assert!(actual_compressed.is_ok());
         assert_eq!(actual_compressed.unwrap(), compressed);

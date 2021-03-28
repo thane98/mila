@@ -122,8 +122,10 @@ impl LayeredFilesystem {
         } else {
             path.to_string()
         };
+        let mut attempted_paths: Vec<String> = Vec::new();
         for layer in self.layers.iter().rev() {
             let path_buf = Path::new(layer).join(&actual_path);
+            attempted_paths.push(path_buf.display().to_string());
             if path_buf.exists() {
                 let bytes = match std::fs::read(&path_buf) {
                     Ok(b) => b,
@@ -141,7 +143,10 @@ impl LayeredFilesystem {
                 }
             }
         }
-        Err(LayeredFilesystemError::FileNotFound(actual_path))
+        Err(LayeredFilesystemError::FileNotFound(
+            actual_path,
+            attempted_paths.join(","),
+        ))
     }
 
     pub fn file_exists(&self, path: &str, localized: bool) -> Result<bool> {

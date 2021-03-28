@@ -1,9 +1,8 @@
-use std::path::Path;
 use crate::errors::LocalizationError;
 use crate::Language;
+use std::path::Path;
 
 type Result<T> = std::result::Result<T, LocalizationError>;
-
 
 fn get_parent_as_string(path: &Path) -> Result<String> {
     let parent = path.parent();

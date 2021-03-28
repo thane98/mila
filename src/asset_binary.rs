@@ -565,7 +565,10 @@ pub struct AssetBinary {
 
 impl AssetBinary {
     pub fn new() -> Self {
-        AssetBinary { flags: 0, specs: Vec::new() }
+        AssetBinary {
+            flags: 0,
+            specs: Vec::new(),
+        }
     }
 
     pub fn from_archive(archive: &BinArchive) -> Result<Self> {

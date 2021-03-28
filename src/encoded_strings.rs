@@ -1,7 +1,7 @@
+use crate::EncodedStringsError;
 use byteorder::ReadBytesExt;
 use encoding_rs::{SHIFT_JIS, UTF_16LE};
 use std::io::Cursor;
-use crate::EncodedStringsError;
 
 type Result<T> = std::result::Result<T, EncodedStringsError>;
 

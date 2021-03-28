@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum CompressionError {
     #[error("Input is not compressed using {0}.")]
-    InvalidInput(String)
+    InvalidInput(String),
 }
 
 #[derive(Error, Debug)]
@@ -48,7 +48,6 @@ pub enum ArchiveError {
     EncodingStringsError(#[from] EncodedStringsError),
 }
 
-
 #[derive(Error, Debug)]
 pub enum LocalizationError {
     #[error("Unsupported language.")]
@@ -72,8 +71,8 @@ pub enum LayeredFilesystemError {
     #[error("Filesystem contains no writeable layers.")]
     NoWriteableLayers,
 
-    #[error("File '{0}' does not exist.")]
-    FileNotFound(String),
+    #[error("File '{0}' does not exist. Attempted to find it using the following paths: '[{1}]'")]
+    FileNotFound(String, String),
 
     #[error("Failed to read file '{0}' due to nested error: {1}")]
     ReadError(String, String),
@@ -133,7 +132,7 @@ pub enum DialogueError {
     BadRule,
 
     #[error("An undefined error occurred.")]
-    UndefinedError
+    UndefinedError,
 }
 
 #[derive(Error, Debug)]

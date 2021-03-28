@@ -151,13 +151,17 @@ impl BinArchive {
             // Can't reasonably compare pointer values, so we only look to make sure
             // that both cells either have or don't have a pointer.
             match self.read_pointer(source_addr)? {
-                Some(_) => if other.read_pointer(other_addr)?.is_none() {
-                    return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
-                } else {
-                    has_pointer_or_text = true;
+                Some(_) => {
+                    if other.read_pointer(other_addr)?.is_none() {
+                        return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+                    } else {
+                        has_pointer_or_text = true;
+                    }
                 }
-                None => if other.read_pointer(other_addr)?.is_some() {
-                    return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+                None => {
+                    if other.read_pointer(other_addr)?.is_some() {
+                        return Err(ArchiveError::ComparisonFailure(source_addr, other_addr));
+                    }
                 }
             }
 
