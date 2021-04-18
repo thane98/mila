@@ -46,6 +46,9 @@ pub enum ArchiveError {
 
     #[error(transparent)]
     EncodingStringsError(#[from] EncodedStringsError),
+
+    #[error("Other error: {0}")]
+    OtherError(String)
 }
 
 #[derive(Error, Debug)]
@@ -106,6 +109,9 @@ pub enum LayeredFilesystemError {
 
     #[error(transparent)]
     ArcError(#[from] ArcError),
+
+    #[error("Other error: {0}")]
+    OtherError(String)
 }
 
 #[derive(Error, Debug)]
@@ -121,6 +127,9 @@ pub enum TextArchiveError {
 
     #[error(transparent)]
     EncodingStringsError(#[from] crate::EncodedStringsError),
+
+    #[error("Other error: {0}")]
+    OtherError(String)
 }
 
 #[derive(Error, Debug)]
