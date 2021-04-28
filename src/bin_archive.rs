@@ -60,6 +60,30 @@ fn adjust_pointer(pointer: usize, address: usize, count: usize, subtract: bool) 
     }
 }
 
+fn filter_text_or_labels<T: Clone>(
+    map: &HashMap<usize, T>,
+    address: usize,
+    count: usize,
+) -> HashMap<usize, T> {
+    let range = address..(address + count);
+    map.iter()
+        .filter(|(addr, _)| !range.contains(&addr))
+        .map(|(addr, value)| (*addr, value.clone()))
+        .collect()
+}
+
+fn filter_pointers(
+    map: &HashMap<usize, usize>,
+    address: usize,
+    count: usize,
+) -> HashMap<usize, usize> {
+    let range = address..(address + count);
+    map.iter()
+        .filter(|(source, destination)| !(range.contains(&source) || range.contains(&destination)))
+        .map(|(a, b)| (*a, *b))
+        .collect()
+}
+
 fn adjust_text<T: Clone>(
     map: &HashMap<usize, T>,
     address: usize,
@@ -591,6 +615,24 @@ impl BinArchive {
         Ok(())
     }
 
+    pub fn deallocate(&mut self, address: usize, amount_in_bytes: usize) -> Result<()> {
+        validate_address(address, self.size(), false)?;
+        validate_address(address + amount_in_bytes, self.size(), true)?;
+        validate_alignment(address, 4)?;
+        validate_alignment(amount_in_bytes, 4)?;
+        self.data.drain(address..(address + amount_in_bytes));
+        let filtered_text = filter_text_or_labels(&self.text, address, amount_in_bytes);
+        let filtered_labels = filter_text_or_labels(&self.labels, address, amount_in_bytes);
+        let filtered_pointers = filter_pointers(&self.pointers, address, amount_in_bytes);
+        let new_text = adjust_text(&filtered_text, address, amount_in_bytes, true);
+        let new_labels = adjust_labels(&filtered_labels, address, amount_in_bytes, true);
+        let new_pointers = adjust_pointers(&filtered_pointers, address, amount_in_bytes, true);
+        self.text = new_text;
+        self.labels = new_labels;
+        self.pointers = new_pointers;
+        Ok(())
+    }
+
     pub fn truncate(&mut self, address: usize) -> Result<()> {
         if address >= self.data.len() {
             return Ok(());
@@ -802,7 +844,7 @@ mod tests {
         let result2 = archive.read_f32(2);
         let result3 = archive.read_f32(9);
         let result4 = archive.read_f32(8);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0.5);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -819,7 +861,7 @@ mod tests {
         };
         let result1 = archive.read_u8(1);
         let result2 = archive.read_u8(2);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 23);
         assert!(result2.is_err());
     }
@@ -836,7 +878,7 @@ mod tests {
         let result2 = archive.read_u16(1);
         let result3 = archive.read_u16(8);
         let result4 = archive.read_u16(4);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0xFE14);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -855,7 +897,7 @@ mod tests {
         let result2 = archive.read_u32(2);
         let result3 = archive.read_u32(9);
         let result4 = archive.read_u32(8);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0xFE15FE14);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -872,7 +914,7 @@ mod tests {
         };
         let result1 = archive.read_i8(1);
         let result2 = archive.read_i8(2);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 23);
         assert!(result2.is_err());
     }
@@ -889,7 +931,7 @@ mod tests {
         let result2 = archive.read_i16(1);
         let result3 = archive.read_i16(8);
         let result4 = archive.read_i16(4);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0x1112);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -908,7 +950,7 @@ mod tests {
         let result2 = archive.read_u32(2);
         let result3 = archive.read_u32(9);
         let result4 = archive.read_u32(8);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0x11151114);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1110,7 +1152,7 @@ mod tests {
         let result2 = archive.write_f32(2, 0.5);
         let result3 = archive.write_f32(9, 0.5);
         let result4 = archive.write_f32(8, 0.5);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1128,7 +1170,7 @@ mod tests {
         let expected: Vec<u8> = vec![0, 0x23];
         let result1 = archive.write_u8(1, 0x23);
         let result2 = archive.write_u8(2, 0x23);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
     }
@@ -1146,7 +1188,7 @@ mod tests {
         let result2 = archive.write_u16(1, 0x1112);
         let result3 = archive.write_u16(8, 0x1112);
         let result4 = archive.write_u16(4, 0x1112);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1166,7 +1208,7 @@ mod tests {
         let result2 = archive.write_u32(1, 0x23221112);
         let result3 = archive.write_u32(8, 0x23221112);
         let result4 = archive.write_u32(2, 0x23221112);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1184,7 +1226,7 @@ mod tests {
         let expected: Vec<u8> = vec![0, 0x23];
         let result1 = archive.write_i8(1, 0x23);
         let result2 = archive.write_i8(2, 0x23);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
     }
@@ -1202,7 +1244,7 @@ mod tests {
         let result2 = archive.write_i16(1, 0x1112);
         let result3 = archive.write_i16(8, 0x1112);
         let result4 = archive.write_i16(4, 0x1112);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1222,7 +1264,7 @@ mod tests {
         let result2 = archive.write_i32(1, 0x23221112);
         let result3 = archive.write_i32(8, 0x23221112);
         let result4 = archive.write_i32(2, 0x23221112);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1242,7 +1284,7 @@ mod tests {
         let result1 = archive.write_bytes(1, &bytes);
         let result2 = archive.write_bytes(2, &bytes);
         let result3 = archive.write_bytes(3, &bytes);
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1263,7 +1305,7 @@ mod tests {
         let result2 = archive.write_string(3, Some("test"));
         let result3 = archive.write_string(8, Some("test"));
         let result4 = archive.write_string(9, Some("test"));
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.text, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1285,7 +1327,7 @@ mod tests {
         let result2 = archive.write_pointer(3, Some(0));
         let result3 = archive.write_pointer(8, Some(0));
         let result4 = archive.write_pointer(9, Some(0));
-        assert!(result1.is_ok(), true);
+        assert!(result1.is_ok());
         assert_eq!(archive.pointers, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1459,6 +1501,16 @@ mod tests {
     }
 
     #[test]
+    fn deallocate_mixed2() {
+        test_deallocation(
+            "ArchiveTest_Mixed2.bin",
+            "ArchiveTest_Deallocate_Mixed2.bin",
+            36,
+            48,
+        );
+    }
+
+    #[test]
     fn allocate_no_label_shift() {
         let bytes = load_test_file("Allocate_NoLabelShift.bin");
         let mut archive = BinArchive::from_bytes(&bytes).unwrap();
@@ -1526,6 +1578,25 @@ mod tests {
         assert!(result.is_ok());
         let mut archive = result.unwrap();
         let result = archive.allocate(address, count);
+        assert!(result.is_ok());
+        let result = archive.serialize();
+        assert!(result.is_ok());
+        let bytes = result.unwrap();
+        assert_eq!(bytes, expected);
+    }
+
+    fn test_deallocation(
+        source_file_name: &str,
+        result_file_name: &str,
+        address: usize,
+        count: usize,
+    ) {
+        let bytes = load_test_file(source_file_name);
+        let expected = load_test_file(result_file_name);
+        let result = BinArchive::from_bytes(&bytes);
+        assert!(result.is_ok());
+        let mut archive = result.unwrap();
+        let result = archive.deallocate(address, count);
         assert!(result.is_ok());
         let result = archive.serialize();
         assert!(result.is_ok());
