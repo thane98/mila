@@ -1,3 +1,5 @@
+use normpath::PathExt;
+
 use crate::{arc, bch, cgfx, ctpk, LayeredFilesystemError, TextArchive, Texture};
 use crate::{
     BinArchive, CompressionFormat, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, Game,
@@ -71,7 +73,8 @@ impl LayeredFilesystem {
 
         let mut canonical_layers: Vec<String> = Vec::new();
         for layer in &layers {
-            canonical_layers.push(dunce::canonicalize(layer)?.display().to_string());
+            let path = Path::new(layer);
+            canonical_layers.push(path.normalize()?.into_path_buf().display().to_string());
         }
 
         Ok(LayeredFilesystem {
@@ -105,7 +108,7 @@ impl LayeredFilesystem {
         let mut path = PathBuf::new();
         path.push(layer);
         path.push(subdir);
-        let mut canonical = dunce::canonicalize(path)?.display().to_string();
+        let mut canonical = path.normalize()?.into_path_buf().display().to_string();
         canonical.push(std::path::MAIN_SEPARATOR);
 
         let pattern = if let Some(p) = glob { p } else { "**/*" };

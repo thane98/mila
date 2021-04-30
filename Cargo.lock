@@ -63,12 +63,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dunce"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2641c4a7c0c4101df53ea572bffdc561c146f6c2eb09e4df02bc4811e3feeb4"
-
-[[package]]
 name = "encoding_rs"
 version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -147,12 +141,12 @@ name = "mila"
 version = "0.1.5"
 dependencies = [
  "byteorder",
- "dunce",
  "encoding_rs",
  "glob",
  "linked-hash-map",
  "maplit",
  "nintendo-lz",
+ "normpath",
  "regex",
  "strum",
  "strum_macros",
@@ -168,6 +162,15 @@ checksum = "768b95cd65a1a8b82d6c7e90a69d080b20996a876cd62987ab5bcb350c5ae646"
 dependencies = [
  "byteorder",
  "clap",
+]
+
+[[package]]
+name = "normpath"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27e6e8f70e9fbbe3752d330d769e3424f24b9458ce266df93a3b456902fd696a"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
