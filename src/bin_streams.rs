@@ -129,11 +129,11 @@ impl<'a> BinArchiveWriter<'a> {
         return self.archive.size();
     }
 
-    pub fn allocate(&mut self, amount: usize) -> Result<()> {
+    pub fn allocate(&mut self, amount: usize, ge: bool) -> Result<()> {
         if self.position == self.archive.size() {
             self.archive.allocate_at_end(amount);
         } else {
-            self.archive.allocate(self.position, amount)?;
+            self.archive.allocate(self.position, amount, ge)?;
         }
         Ok(())
     }

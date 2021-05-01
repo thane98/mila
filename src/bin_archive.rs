@@ -103,11 +103,12 @@ fn adjust_labels<T: Clone>(
     address: usize,
     count: usize,
     subtract: bool,
+    ge: bool,
 ) -> HashMap<usize, T> {
     map.iter()
         .map(|(addr, value)| {
             let pointer = *addr;
-            let new_pointer = if pointer > address {
+            let new_pointer = if pointer > address || (pointer >= address && ge) {
                 if subtract {
                     pointer - count
                 } else {
@@ -126,11 +127,12 @@ fn adjust_pointers(
     address: usize,
     count: usize,
     subtract: bool,
+    ge: bool,
 ) -> HashMap<usize, usize> {
     map.iter()
         .map(|(source, destination)| {
             let new_source = adjust_pointer(*source, address, count, subtract);
-            let new_destination = if *destination > address {
+            let new_destination = if *destination > address || (*destination >= address && ge) {
                 if subtract {
                     destination - count
                 } else {
@@ -599,7 +601,7 @@ impl BinArchive {
         }
     }
 
-    pub fn allocate(&mut self, address: usize, amount_in_bytes: usize) -> Result<()> {
+    pub fn allocate(&mut self, address: usize, amount_in_bytes: usize, ge: bool) -> Result<()> {
         validate_address(address, self.size(), true)?;
         validate_alignment(address, 4)?;
         validate_alignment(amount_in_bytes, 4)?;
@@ -607,15 +609,15 @@ impl BinArchive {
         self.data
             .splice(address..address, bytes_to_insert.iter().cloned());
         let new_text = adjust_text(&self.text, address, amount_in_bytes, false);
-        let new_labels = adjust_labels(&self.labels, address, amount_in_bytes, false);
-        let new_pointers = adjust_pointers(&self.pointers, address, amount_in_bytes, false);
+        let new_labels = adjust_labels(&self.labels, address, amount_in_bytes, false, ge);
+        let new_pointers = adjust_pointers(&self.pointers, address, amount_in_bytes, false, ge);
         self.text = new_text;
         self.labels = new_labels;
         self.pointers = new_pointers;
         Ok(())
     }
 
-    pub fn deallocate(&mut self, address: usize, amount_in_bytes: usize) -> Result<()> {
+    pub fn deallocate(&mut self, address: usize, amount_in_bytes: usize, ge: bool) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + amount_in_bytes, self.size(), true)?;
         validate_alignment(address, 4)?;
@@ -625,8 +627,8 @@ impl BinArchive {
         let filtered_labels = filter_text_or_labels(&self.labels, address, amount_in_bytes);
         let filtered_pointers = filter_pointers(&self.pointers, address, amount_in_bytes);
         let new_text = adjust_text(&filtered_text, address, amount_in_bytes, true);
-        let new_labels = adjust_labels(&filtered_labels, address, amount_in_bytes, true);
-        let new_pointers = adjust_pointers(&filtered_pointers, address, amount_in_bytes, true);
+        let new_labels = adjust_labels(&filtered_labels, address, amount_in_bytes, true, ge);
+        let new_pointers = adjust_pointers(&filtered_pointers, address, amount_in_bytes, true, ge);
         self.text = new_text;
         self.labels = new_labels;
         self.pointers = new_pointers;
@@ -1482,9 +1484,9 @@ mod tests {
             pointers: HashMap::new(),
             labels: HashMap::new(),
         };
-        let result1 = archive.allocate(2, 4);
-        let result2 = archive.allocate(0, 3);
-        let result3 = archive.allocate(8, 4);
+        let result1 = archive.allocate(2, 4, false);
+        let result2 = archive.allocate(0, 3, false);
+        let result3 = archive.allocate(8, 4, false);
         assert!(result1.is_err());
         assert!(result2.is_err());
         assert!(result3.is_err());
@@ -1514,7 +1516,7 @@ mod tests {
     fn allocate_no_label_shift() {
         let bytes = load_test_file("Allocate_NoLabelShift.bin");
         let mut archive = BinArchive::from_bytes(&bytes).unwrap();
-        assert!(archive.allocate(0x8, 0x10).is_ok());
+        assert!(archive.allocate(0x8, 0x10, false).is_ok());
         assert_eq!(
             archive.read_labels(0x8).unwrap().unwrap(),
             vec!("TEST".to_string())
@@ -1530,9 +1532,9 @@ mod tests {
     fn allocate_no_destination_shift() {
         let bytes = load_test_file("Allocate_NoDestinationShift.bin");
         let mut archive = BinArchive::from_bytes(&bytes).unwrap();
-        assert!(archive.allocate(0x10, 0x10).is_ok());
+        assert!(archive.allocate(0x10, 0x10, false).is_ok());
         assert_eq!(archive.read_pointer(0x8).unwrap().unwrap(), 0x10);
-        assert!(archive.allocate(0xC, 0x10).is_ok());
+        assert!(archive.allocate(0xC, 0x10, false).is_ok());
         assert_eq!(archive.read_pointer(0x8).unwrap().unwrap(), 0x20);
     }
 
@@ -1577,7 +1579,7 @@ mod tests {
         let result = BinArchive::from_bytes(&bytes);
         assert!(result.is_ok());
         let mut archive = result.unwrap();
-        let result = archive.allocate(address, count);
+        let result = archive.allocate(address, count, false);
         assert!(result.is_ok());
         let result = archive.serialize();
         assert!(result.is_ok());
@@ -1596,7 +1598,7 @@ mod tests {
         let result = BinArchive::from_bytes(&bytes);
         assert!(result.is_ok());
         let mut archive = result.unwrap();
-        let result = archive.deallocate(address, count);
+        let result = archive.deallocate(address, count, false);
         assert!(result.is_ok());
         let result = archive.serialize();
         assert!(result.is_ok());
