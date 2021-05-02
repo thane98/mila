@@ -209,14 +209,11 @@ impl BinArchive {
             return Err(ArchiveError::ArchiveTooSmall);
         }
         let mut cursor = Cursor::new(bytes);
-        let file_size = cursor.read_u32::<LittleEndian>()?;
+        let _file_size = cursor.read_u32::<LittleEndian>()?;
         let data_size = cursor.read_u32::<LittleEndian>()?;
         let pointer_count = cursor.read_u32::<LittleEndian>()?;
         let label_count = cursor.read_u32::<LittleEndian>()?;
         let text_start = (data_size + (pointer_count * 4) + (label_count * 8)) as usize;
-        if file_size as usize != bytes.len() {
-            return Err(ArchiveError::SizeMismatch);
-        }
         if text_start + 0x20 > bytes.len() {
             return Err(ArchiveError::ArchiveTooSmall);
         }
@@ -1546,11 +1543,6 @@ mod tests {
     #[test]
     fn from_bytes_bad_size() {
         test_archive_for_error("ArchiveTest_BadSize.bin");
-    }
-
-    #[test]
-    fn from_bytes_file_size_mismatch() {
-        test_archive_for_error("ArchiveTest_FileSizeMismatch.bin");
     }
 
     #[test]
