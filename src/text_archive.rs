@@ -108,7 +108,8 @@ impl TextArchive {
 
     pub fn set_message(&mut self, key: &str, message: &str) {
         let message = message.replace("\\n", "\n");
-        self.entries.insert(key.to_string(), message);
+        let entry = self.entries.entry(key.to_string()).or_insert(String::new());
+        *entry = message;
         self.dirty = true;
     }
 
@@ -154,5 +155,23 @@ mod test {
         let message = text_archive.entries.get("my_key");
         assert!(message.is_some());
         assert_eq!(message.unwrap(), "My message\nhas newlines\n.");
+    }
+
+    #[test]
+    fn set_message_does_not_reorder_keys() {
+        let mut archive = TextArchive::new();
+        archive.entries.insert("Key1".to_string(), "Value1".to_string());
+        archive.entries.insert("Key2".to_string(), "Value2".to_string());
+
+        let keys: Vec<String> = archive.entries.keys().cloned().collect();
+        assert_eq!(vec!["Key1".to_string(), "Key2".to_string()], keys);
+
+        archive.set_message("Key1", "NewValue");
+        let message = archive.entries.get("Key1");
+        assert!(message.is_some());
+        assert_eq!(message.unwrap(), "NewValue");
+
+        let keys: Vec<String> = archive.entries.keys().cloned().collect();
+        assert_eq!(vec!["Key1".to_string(), "Key2".to_string()], keys);
     }
 }
