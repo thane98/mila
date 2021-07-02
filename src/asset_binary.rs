@@ -64,8 +64,8 @@ pub struct AssetSpec {
     pub use_unk5: bool,
     pub unk6: u32,
     pub use_unk6: bool,
-    pub on_hit_effect: u32,
-    pub use_on_hit_effect: bool,
+    pub bitflags: [u8; 4],
+    pub use_bitflags: bool,
     pub unk7: u32,
     pub use_unk7: bool,
     pub unk8: u32,
@@ -232,8 +232,8 @@ impl AssetSpec {
                 spec.use_unk6 = true;
             }
             if (flags[5] & 0b10000) != 0 {
-                spec.on_hit_effect = reader.read_u32()?;
-                spec.use_on_hit_effect = true;
+                spec.bitflags = read_color(reader)?;
+                spec.use_bitflags = true;
             }
             if (flags[5] & 0b100000) != 0 {
                 spec.unk7 = reader.read_u32()?;
@@ -430,7 +430,7 @@ impl AssetSpec {
         flags[5] |= if !self.use_unk4 { 0 } else { 0b10 };
         flags[5] |= if !self.use_unk5 { 0 } else { 0b100 };
         flags[5] |= if !self.use_unk6 { 0 } else { 0b1000 };
-        flags[5] |= if !self.use_on_hit_effect { 0 } else { 0b10000 };
+        flags[5] |= if !self.use_bitflags { 0 } else { 0b10000 };
         flags[5] |= if !self.use_unk7 { 0 } else { 0b100000 };
         flags[5] |= if !self.use_unk8 { 0 } else { 0b1000000 };
         flags[5] |= if !self.use_unk9 { 0 } else { 0b10000000 };
@@ -529,8 +529,8 @@ impl AssetSpec {
             if self.use_unk6 {
                 writer.write_u32(self.unk6)?;
             }
-            if self.use_on_hit_effect {
-                writer.write_u32(self.on_hit_effect)?;
+            if self.use_bitflags {
+                write_color(&self.bitflags, &mut writer)?;
             }
             if self.use_unk7 {
                 writer.write_u32(self.unk7)?;
