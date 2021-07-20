@@ -345,7 +345,6 @@ impl BinArchive {
     pub fn read_f32(&self, address: usize) -> Result<f32> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         let mut cursor = Cursor::new(&self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         Ok(cursor.read_f32::<LittleEndian>()?)
@@ -361,7 +360,6 @@ impl BinArchive {
     pub fn read_u16(&self, address: usize) -> Result<u16> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        validate_alignment(address, 2)?;
         let mut cursor = Cursor::new(&self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         Ok(cursor.read_u16::<LittleEndian>()?)
@@ -370,7 +368,6 @@ impl BinArchive {
     pub fn read_u32(&self, address: usize) -> Result<u32> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         let mut cursor = Cursor::new(&self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         Ok(cursor.read_u32::<LittleEndian>()?)
@@ -386,7 +383,6 @@ impl BinArchive {
     pub fn read_i16(&self, address: usize) -> Result<i16> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        validate_alignment(address, 2)?;
         let mut cursor = Cursor::new(&self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         Ok(cursor.read_i16::<LittleEndian>()?)
@@ -395,7 +391,6 @@ impl BinArchive {
     pub fn read_i32(&self, address: usize) -> Result<i32> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         let mut cursor = Cursor::new(&self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         Ok(cursor.read_i32::<LittleEndian>()?)
@@ -410,28 +405,24 @@ impl BinArchive {
     pub fn read_string(&self, address: usize) -> Result<Option<String>> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         Ok(self.text.get(&address).map(|x| x.to_owned()))
     }
 
     pub fn read_pointer(&self, address: usize) -> Result<Option<usize>> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         Ok(self.pointers.get(&address).map(|x| x.to_owned()))
     }
 
     pub fn read_labels(&self, address: usize) -> Result<Option<Vec<String>>> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         Ok(self.labels.get(&address).map(|x| x.to_owned()))
     }
 
     pub fn delete_string(&mut self, address: usize) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         self.text.remove(&address);
         Ok(())
     }
@@ -439,7 +430,6 @@ impl BinArchive {
     pub fn delete_pointer(&mut self, address: usize) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         self.pointers.remove(&address);
         Ok(())
     }
@@ -447,7 +437,6 @@ impl BinArchive {
     pub fn delete_labels(&mut self, address: usize) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         self.labels.remove(&address);
         Ok(())
     }
@@ -455,7 +444,6 @@ impl BinArchive {
     pub fn delete_label(&mut self, address: usize, index: usize) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         match self.labels.get_mut(&address) {
             Some(bucket) => {
                 if index < bucket.len() {
@@ -472,7 +460,6 @@ impl BinArchive {
     pub fn write_f32(&mut self, address: usize, value: f32) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         let mut cursor = Cursor::new(&mut self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         cursor.write_f32::<LittleEndian>(value)?;
@@ -490,7 +477,6 @@ impl BinArchive {
     pub fn write_u16(&mut self, address: usize, value: u16) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        validate_alignment(address, 2)?;
         let mut cursor = Cursor::new(&mut self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         cursor.write_u16::<LittleEndian>(value)?;
@@ -500,7 +486,6 @@ impl BinArchive {
     pub fn write_u32(&mut self, address: usize, value: u32) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         let mut cursor = Cursor::new(&mut self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         cursor.write_u32::<LittleEndian>(value)?;
@@ -518,7 +503,6 @@ impl BinArchive {
     pub fn write_i16(&mut self, address: usize, value: i16) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        validate_alignment(address, 2)?;
         let mut cursor = Cursor::new(&mut self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         cursor.write_i16::<LittleEndian>(value)?;
@@ -528,7 +512,6 @@ impl BinArchive {
     pub fn write_i32(&mut self, address: usize, value: i32) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        validate_alignment(address, 4)?;
         let mut cursor = Cursor::new(&mut self.data);
         cursor.seek(SeekFrom::Start(address as u64))?;
         cursor.write_i32::<LittleEndian>(value)?;
@@ -547,7 +530,6 @@ impl BinArchive {
             Some(value) => {
                 validate_address(address, self.size(), false)?;
                 validate_address(address + 4, self.size(), true)?;
-                validate_alignment(address, 4)?;
                 self.text.insert(address, value.to_owned());
                 Ok(())
             }
@@ -560,7 +542,6 @@ impl BinArchive {
             Some(value) => {
                 validate_address(address, self.size(), false)?;
                 validate_address(address + 4, self.size(), true)?;
-                validate_alignment(address, 4)?;
                 self.pointers.insert(address, value);
                 Ok(())
             }
@@ -570,14 +551,12 @@ impl BinArchive {
 
     pub fn write_labels(&mut self, address: usize, labels: Vec<String>) -> Result<()> {
         validate_address(address, self.size(), true)?;
-        validate_alignment(address, 4)?;
         self.labels.insert(address, labels);
         Ok(())
     }
 
     pub fn write_label(&mut self, address: usize, label: &str) -> Result<()> {
         validate_address(address, self.size(), true)?;
-        validate_alignment(address, 4)?;
         match self.labels.get_mut(&address) {
             Some(bucket) => {
                 bucket.push(label.to_owned());
@@ -840,14 +819,10 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_f32(4);
-        let result2 = archive.read_f32(2);
-        let result3 = archive.read_f32(9);
-        let result4 = archive.read_f32(8);
+        let result2 = archive.read_f32(8);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0.5);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -874,14 +849,12 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_u16(2);
-        let result2 = archive.read_u16(1);
-        let result3 = archive.read_u16(8);
-        let result4 = archive.read_u16(4);
+        let result2 = archive.read_u16(8);
+        let result3 = archive.read_u16(4);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0xFE14);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -893,14 +866,10 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_u32(4);
-        let result2 = archive.read_u32(2);
-        let result3 = archive.read_u32(9);
-        let result4 = archive.read_u32(8);
+        let result2 = archive.read_u32(8);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0xFE15FE14);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -927,14 +896,12 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_i16(2);
-        let result2 = archive.read_i16(1);
-        let result3 = archive.read_i16(8);
-        let result4 = archive.read_i16(4);
+        let result2 = archive.read_i16(8);
+        let result3 = archive.read_i16(4);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0x1112);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -946,14 +913,10 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_u32(4);
-        let result2 = archive.read_u32(2);
-        let result3 = archive.read_u32(9);
-        let result4 = archive.read_u32(8);
+        let result2 = archive.read_u32(8);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0x11151114);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -985,14 +948,12 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_string(4);
-        let result2 = archive.read_string(2);
-        let result3 = archive.read_string(8);
-        let result4 = archive.read_string(12);
+        let result2 = archive.read_string(8);
+        let result3 = archive.read_string(12);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), Some("test".to_string()));
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1006,14 +967,12 @@ mod tests {
             labels: HashMap::new(),
         };
         let result1 = archive.read_pointer(4);
-        let result2 = archive.read_pointer(2);
-        let result3 = archive.read_pointer(8);
-        let result4 = archive.read_pointer(12);
+        let result2 = archive.read_pointer(8);
+        let result3 = archive.read_pointer(12);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), Some(0));
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1032,14 +991,12 @@ mod tests {
             },
         };
         let result1 = archive.read_labels(4);
-        let result2 = archive.read_labels(2);
-        let result3 = archive.read_labels(8);
-        let result4 = archive.read_labels(12);
+        let result2 = archive.read_labels(8);
+        let result3 = archive.read_labels(12);
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), Some(labels));
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1054,14 +1011,12 @@ mod tests {
         };
         let expected: HashMap<usize, String> = HashMap::new();
         let result1 = archive.delete_string(4);
-        let result2 = archive.delete_string(2);
-        let result3 = archive.delete_string(8);
-        let result4 = archive.delete_string(12);
+        let result2 = archive.delete_string(8);
+        let result3 = archive.delete_string(12);
         assert!(result1.is_ok());
         assert_eq!(archive.text, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1076,14 +1031,12 @@ mod tests {
         };
         let expected: HashMap<usize, usize> = HashMap::new();
         let result1 = archive.delete_pointer(4);
-        let result2 = archive.delete_pointer(2);
-        let result3 = archive.delete_pointer(8);
-        let result4 = archive.delete_pointer(12);
+        let result2 = archive.delete_pointer(8);
+        let result3 = archive.delete_pointer(12);
         assert!(result1.is_ok());
         assert_eq!(archive.pointers, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1103,14 +1056,12 @@ mod tests {
         };
         let expected: HashMap<usize, Vec<String>> = HashMap::new();
         let result1 = archive.delete_labels(4);
-        let result2 = archive.delete_labels(2);
-        let result3 = archive.delete_labels(8);
-        let result4 = archive.delete_labels(12);
+        let result2 = archive.delete_labels(8);
+        let result3 = archive.delete_labels(12);
         assert!(result1.is_ok());
         assert_eq!(archive.labels, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1148,14 +1099,12 @@ mod tests {
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0x3F, 0];
         let result1 = archive.write_f32(4, 0.5);
-        let result2 = archive.write_f32(2, 0.5);
-        let result3 = archive.write_f32(9, 0.5);
-        let result4 = archive.write_f32(8, 0.5);
+        let result2 = archive.write_f32(9, 0.5);
+        let result3 = archive.write_f32(8, 0.5);
         assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1184,14 +1133,12 @@ mod tests {
         };
         let expected: Vec<u8> = vec![0, 0, 0x12, 0x11, 0];
         let result1 = archive.write_u16(2, 0x1112);
-        let result2 = archive.write_u16(1, 0x1112);
-        let result3 = archive.write_u16(8, 0x1112);
-        let result4 = archive.write_u16(4, 0x1112);
+        let result2 = archive.write_u16(8, 0x1112);
+        let result3 = archive.write_u16(4, 0x1112);
         assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1204,14 +1151,10 @@ mod tests {
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0x12, 0x11, 0x22, 0x23, 0];
         let result1 = archive.write_u32(4, 0x23221112);
-        let result2 = archive.write_u32(1, 0x23221112);
-        let result3 = archive.write_u32(8, 0x23221112);
-        let result4 = archive.write_u32(2, 0x23221112);
+        let result2 = archive.write_u32(8, 0x23221112);
         assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1240,14 +1183,12 @@ mod tests {
         };
         let expected: Vec<u8> = vec![0, 0, 0x12, 0x11, 0];
         let result1 = archive.write_i16(2, 0x1112);
-        let result2 = archive.write_i16(1, 0x1112);
-        let result3 = archive.write_i16(8, 0x1112);
-        let result4 = archive.write_i16(4, 0x1112);
+        let result2 = archive.write_i16(8, 0x1112);
+        let result3 = archive.write_i16(4, 0x1112);
         assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
         assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1260,14 +1201,10 @@ mod tests {
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0x12, 0x11, 0x22, 0x23, 0];
         let result1 = archive.write_i32(4, 0x23221112);
-        let result2 = archive.write_i32(1, 0x23221112);
-        let result3 = archive.write_i32(8, 0x23221112);
-        let result4 = archive.write_i32(2, 0x23221112);
+        let result2 = archive.write_i32(8, 0x23221112);
         assert!(result1.is_ok());
         assert_eq!(archive.data, expected);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1301,14 +1238,10 @@ mod tests {
             4 => "test".to_string()
         };
         let result1 = archive.write_string(4, Some("test"));
-        let result2 = archive.write_string(3, Some("test"));
-        let result3 = archive.write_string(8, Some("test"));
-        let result4 = archive.write_string(9, Some("test"));
+        let result2 = archive.write_string(8, Some("test"));
         assert!(result1.is_ok());
         assert_eq!(archive.text, expected);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1323,14 +1256,10 @@ mod tests {
             4 => 0
         };
         let result1 = archive.write_pointer(4, Some(0));
-        let result2 = archive.write_pointer(3, Some(0));
-        let result3 = archive.write_pointer(8, Some(0));
-        let result4 = archive.write_pointer(9, Some(0));
+        let result2 = archive.write_pointer(8, Some(0));
         assert!(result1.is_ok());
         assert_eq!(archive.pointers, expected);
         assert!(result2.is_err());
-        assert!(result3.is_err());
-        assert!(result4.is_err());
     }
 
     #[test]
@@ -1351,14 +1280,10 @@ mod tests {
             8 => labels.clone(),
         };
         let result1 = archive.write_labels(4, labels.clone());
-        let result2 = archive.write_labels(3, labels.clone());
-        let result3 = archive.write_labels(8, labels.clone());
-        let result4 = archive.write_labels(9, labels.clone());
+        let result2 = archive.write_labels(8, labels.clone());
         assert!(result1.is_ok());
         assert_eq!(archive.labels, expected);
-        assert!(result2.is_err());
-        assert!(result3.is_ok());
-        assert!(result4.is_err());
+        assert!(result2.is_ok());
     }
 
     #[test]
