@@ -28,12 +28,8 @@ where
             Err(_) => return Err(EncodedStringsError::UnterminatedString),
         }
     }
-    let (result, _, has_errors) = SHIFT_JIS.decode(buffer.as_slice());
-    if has_errors {
-        Err(EncodedStringsError::DecodingFailed("SHIFT-JIS".to_string()))
-    } else {
-        Ok(result.into())
-    }
+    let (result, _, _) = SHIFT_JIS.decode(buffer.as_slice());
+    Ok(result.into())
 }
 
 fn read_utf_16_impl<F, E: std::fmt::Debug>(mut read_u8: F) -> Result<String>
