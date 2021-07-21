@@ -408,6 +408,18 @@ impl BinArchive {
         Ok(self.labels.get(&address).map(|x| x.to_owned()))
     }
 
+    pub fn read_c_string(&self, address: usize) -> Result<Option<String>> {
+        if let Some(ptr) = self.read_pointer(address)? {
+            validate_address(ptr, self.size(), false)?;
+            let mut cursor: Cursor<&[u8]> = Cursor::new(&self.data);
+            cursor.set_position(ptr as u64);
+            let text = cursor.read_shift_jis_string()?;
+            Ok(Some(text))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn delete_string(&mut self, address: usize) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
@@ -999,6 +1011,28 @@ mod tests {
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), Some(labels));
         assert!(result2.is_err());
+        assert!(result3.is_err());
+    }
+
+    #[test]
+    fn read_c_string() {
+        let archive = BinArchive {
+            data: vec![0, 0, 0, 0x4, 0x41, 0x42, 0x43, 0x0, 0x0, 0x0, 0x0, 0x0],
+            text: HashMap::new(),
+            pointers: hashmap! {
+                0 => 4,
+            },
+            labels: HashMap::new(),
+            endian: Endian::Big,
+        };
+        let expected = Some(String::from("ABC"));
+        let result1 = archive.read_c_string(0);
+        let result2 = archive.read_c_string(8);
+        let result3 = archive.read_c_string(100);
+        assert!(result1.is_ok());
+        assert_eq!(expected, result1.unwrap());
+        assert!(result2.is_ok());
+        assert_eq!(None, result2.unwrap());
         assert!(result3.is_err());
     }
 
