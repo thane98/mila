@@ -1,5 +1,5 @@
 use crate::encoded_strings::{to_shift_jis, to_utf_16};
-use crate::{BinArchive, BinArchiveReader, EncodedStringReader, TextArchiveError};
+use crate::{BinArchive, BinArchiveReader, EncodedStringReader, Endian, TextArchiveError};
 use linked_hash_map::LinkedHashMap;
 
 type Result<T> = std::result::Result<T, TextArchiveError>;
@@ -43,7 +43,8 @@ impl TextArchive {
     }
 
     pub fn from_bytes(raw_archive: &[u8]) -> Result<Self> {
-        let bin_archive = BinArchive::from_bytes(raw_archive)?;
+        // TODO: Support a different endian
+        let bin_archive = BinArchive::from_bytes(raw_archive, Endian::Little)?;
         TextArchive::from_archive(&bin_archive)
     }
 

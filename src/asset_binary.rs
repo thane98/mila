@@ -606,12 +606,12 @@ impl AssetBinary {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::load_test_file;
+    use crate::{Endian, utils::load_test_file};
 
     #[test]
     fn round_trip() {
         let file = load_test_file("AssetBinary_Test.bin");
-        let archive = BinArchive::from_bytes(&file).unwrap();
+        let archive = BinArchive::from_bytes(&file, Endian::Little).unwrap();
         let asset_binary = AssetBinary::from_archive(&archive);
         assert!(asset_binary.is_ok());
         let asset_binary = asset_binary.unwrap();

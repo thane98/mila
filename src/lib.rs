@@ -3,6 +3,7 @@ mod bin_archive;
 mod bin_streams;
 mod compression_format;
 mod encoded_strings;
+mod endian_aware_io;
 mod errors;
 mod etc1;
 mod game;
@@ -22,11 +23,14 @@ pub mod ctpk;
 #[cfg(test)]
 mod utils;
 
+use endian_aware_io::{EndianAwareReader, EndianAwareWriter};
+
 pub use asset_binary::{AssetBinary, AssetSpec};
 pub use bin_archive::BinArchive;
 pub use bin_streams::{BinArchiveReader, BinArchiveWriter};
 pub use compression_format::CompressionFormat;
 pub use encoded_strings::EncodedStringReader;
+pub use endian_aware_io::Endian;
 pub use etc1::decode;
 pub use game::Game;
 pub use language::Language;
@@ -38,7 +42,7 @@ pub use texture::Texture;
 pub use errors::{
     ArcError, ArchiveError, CompressionError, DialogueError, EncodedStringsError,
     LayeredFilesystemError, LocalizationError, TextArchiveError, TextureDecodeError,
-    TextureParseError,
+    TextureParseError, EndianAwareIOError,
 };
 pub use localization::{
     FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, NoOpPathLocalizer, PathLocalizer,

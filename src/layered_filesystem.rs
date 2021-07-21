@@ -1,6 +1,6 @@
 use normpath::PathExt;
 
-use crate::{arc, bch, cgfx, ctpk, LayeredFilesystemError, TextArchive, Texture};
+use crate::{Endian, LayeredFilesystemError, TextArchive, Texture, arc, bch, cgfx, ctpk};
 use crate::{
     BinArchive, CompressionFormat, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, Game,
     LZ13CompressionFormat, Language, PathLocalizer,
@@ -16,6 +16,7 @@ pub struct LayeredFilesystem {
     path_localizer: PathLocalizer,
     game: Game,
     language: Language,
+    endian: Endian,
 }
 
 impl Clone for LayeredFilesystem {
@@ -70,6 +71,10 @@ impl LayeredFilesystem {
             Game::FE14 => PathLocalizer::FE14(FE14PathLocalizer {}),
             Game::FE15 => PathLocalizer::FE15(FE15PathLocalizer {}),
         };
+        let endian = match game {
+            Game::FE9 | Game::FE10 => Endian::Big,
+            _ => Endian::Little,
+        };
 
         let mut canonical_layers: Vec<String> = Vec::new();
         for layer in &layers {
@@ -83,6 +88,7 @@ impl LayeredFilesystem {
             path_localizer,
             game,
             language,
+            endian,
         })
     }
 
@@ -175,7 +181,7 @@ impl LayeredFilesystem {
 
     pub fn read_archive(&self, path: &str, localized: bool) -> Result<BinArchive> {
         let bytes = self.read(path, localized)?;
-        let archive = BinArchive::from_bytes(&bytes)?;
+        let archive = BinArchive::from_bytes(&bytes, self.endian)?;
         Ok(archive)
     }
 

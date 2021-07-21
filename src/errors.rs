@@ -43,6 +43,9 @@ pub enum ArchiveError {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+    
+    #[error(transparent)]
+    EndianAwareIOError(#[from] EndianAwareIOError),
 
     #[error(transparent)]
     EncodingStringsError(#[from] EncodedStringsError),
@@ -181,4 +184,13 @@ pub enum ArcError {
 
     #[error(transparent)]
     ArchiveError(#[from] ArchiveError),
+}
+
+#[derive(Error, Debug)]
+pub enum EndianAwareIOError {
+    #[error("Error converting slice to array")]
+    ConversionError,
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error)
 }

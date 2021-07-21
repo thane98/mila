@@ -1,6 +1,6 @@
+use crate::{Endian, EndianAwareReader, EndianAwareWriter};
 use crate::encoded_strings::{to_shift_jis, EncodedStringReader};
 use crate::errors::ArchiveError;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use linked_hash_map::LinkedHashMap;
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -13,6 +13,7 @@ pub struct BinArchive {
     text: HashMap<usize, String>,
     pointers: HashMap<usize, usize>,
     labels: HashMap<usize, Vec<String>>,
+    endian: Endian,
 }
 
 fn validate_address(address: usize, size: usize, end_is_valid: bool) -> Result<()> {
@@ -153,6 +154,7 @@ impl BinArchive {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         }
     }
 
@@ -204,15 +206,15 @@ impl BinArchive {
         Ok(())
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8], endian: Endian) -> Result<Self> {
         if bytes.len() < 0x20 {
             return Err(ArchiveError::ArchiveTooSmall);
         }
         let mut cursor = Cursor::new(bytes);
-        let _file_size = cursor.read_u32::<LittleEndian>()?;
-        let data_size = cursor.read_u32::<LittleEndian>()?;
-        let pointer_count = cursor.read_u32::<LittleEndian>()?;
-        let label_count = cursor.read_u32::<LittleEndian>()?;
+        cursor.set_position(4);
+        let data_size = cursor.read_u32(endian)?;
+        let pointer_count = cursor.read_u32(endian)?;
+        let label_count = cursor.read_u32(endian)?;
         let text_start = (data_size + (pointer_count * 4) + (label_count * 8)) as usize;
         if text_start + 0x20 > bytes.len() {
             return Err(ArchiveError::ArchiveTooSmall);
@@ -223,7 +225,7 @@ impl BinArchive {
         archive.data.resize(data_size as usize, 0);
         cursor.read_exact(&mut archive.data)?;
         for _ in 0..pointer_count {
-            let pointer_address = cursor.read_u32::<LittleEndian>()? as usize;
+            let pointer_address = cursor.read_u32(endian)? as usize;
             let pointer_value = archive.read_u32(pointer_address as usize)? as usize;
             if pointer_value > data_size as usize {
                 let original_position = cursor.position();
@@ -237,8 +239,8 @@ impl BinArchive {
         }
 
         for _ in 0..label_count {
-            let address = cursor.read_u32::<LittleEndian>()?;
-            let offset = cursor.read_u32::<LittleEndian>()? as usize;
+            let address = cursor.read_u32(endian)?;
+            let offset = cursor.read_u32(endian)? as usize;
             let text_address = text_start + offset + 0x20;
             let original_position = cursor.position();
             cursor.seek(SeekFrom::Start(text_address as u64))?;
@@ -270,13 +272,13 @@ impl BinArchive {
         let mut raw_labels: Vec<u32> = Vec::new();
         let mut raw_text: Vec<u8> = Vec::new();
         let mut raw_text_offsets: HashMap<String, usize> = HashMap::new();
-        let mut cursor = Cursor::new(&mut data);
+        let mut cursor: Cursor<&mut [u8]> = Cursor::new(&mut data);
 
         let mut pointers: Vec<(&usize, &usize)> = self.pointers.iter().collect();
         pointers.sort_by(|a, b| a.0.cmp(b.0));
         for (source, destination) in pointers {
             cursor.seek(SeekFrom::Start(*source as u64))?;
-            cursor.write_u32::<LittleEndian>(*destination as u32)?;
+            cursor.write_u32(*destination as u32, self.endian)?;
             raw_pointers.push(*source as u32);
         }
 
@@ -299,7 +301,7 @@ impl BinArchive {
             let offset = add_text(&mut raw_text, &mut raw_text_offsets, string)?;
             let text_address = text_start + offset;
             cursor.seek(SeekFrom::Start(*address as u64))?;
-            cursor.write_u32::<LittleEndian>(text_address as u32)?;
+            cursor.write_u32(text_address as u32, self.endian)?;
             match ptr_data_pairs.get_mut(&offset) {
                 Some(bucket) => {
                     bucket.push(*address as u32);
@@ -325,18 +327,18 @@ impl BinArchive {
             + raw_text.len()
             + 0x20;
         bytes.resize(file_size, 0);
-        let mut cursor = Cursor::new(&mut bytes);
-        cursor.write_u32::<LittleEndian>(file_size as u32)?;
-        cursor.write_u32::<LittleEndian>(data.len() as u32)?;
-        cursor.write_u32::<LittleEndian>(raw_pointers.len() as u32)?;
-        cursor.write_u32::<LittleEndian>((raw_labels.len() / 2) as u32)?;
+        let mut cursor: Cursor<&mut [u8]> = Cursor::new(&mut bytes);
+        cursor.write_u32(file_size as u32, self.endian)?;
+        cursor.write_u32(data.len() as u32, self.endian)?;
+        cursor.write_u32(raw_pointers.len() as u32, self.endian)?;
+        cursor.write_u32((raw_labels.len() / 2) as u32, self.endian)?;
         cursor.seek(SeekFrom::Start(0x20))?;
         cursor.write(&data)?;
         for pointer in raw_pointers {
-            cursor.write_u32::<LittleEndian>(pointer)?;
+            cursor.write_u32(pointer, self.endian)?;
         }
         for label_part in raw_labels {
-            cursor.write_u32::<LittleEndian>(label_part)?;
+            cursor.write_u32(label_part, self.endian)?;
         }
         cursor.write(&raw_text)?;
         Ok(bytes)
@@ -345,55 +347,41 @@ impl BinArchive {
     pub fn read_f32(&self, address: usize) -> Result<f32> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_f32::<LittleEndian>()?)
+        Ok(self.endian.decode_f32(&self.data[address..address + 4])?)
     }
 
     pub fn read_u8(&self, address: usize) -> Result<u8> {
         validate_address(address, self.size(), false)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_u8()?)
+        Ok(self.data[address])
     }
 
     pub fn read_u16(&self, address: usize) -> Result<u16> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_u16::<LittleEndian>()?)
+        Ok(self.endian.decode_u16(&self.data[address..address + 2])?)
     }
 
     pub fn read_u32(&self, address: usize) -> Result<u32> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_u32::<LittleEndian>()?)
+        Ok(self.endian.decode_u32(&self.data[address..address + 4])?)
     }
 
     pub fn read_i8(&self, address: usize) -> Result<i8> {
         validate_address(address, self.size(), false)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_i8()?)
+        Ok(self.data[address] as i8)
     }
 
     pub fn read_i16(&self, address: usize) -> Result<i16> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_i16::<LittleEndian>()?)
+        Ok(self.endian.decode_i16(&self.data[address..address + 2])?)
     }
 
     pub fn read_i32(&self, address: usize) -> Result<i32> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let mut cursor = Cursor::new(&self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        Ok(cursor.read_i32::<LittleEndian>()?)
+        Ok(self.endian.decode_i32(&self.data[address..address + 4])?)
     }
 
     pub fn read_bytes(&self, address: usize, amount: usize) -> Result<&[u8]> {
@@ -460,61 +448,52 @@ impl BinArchive {
     pub fn write_f32(&mut self, address: usize, value: f32) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_f32::<LittleEndian>(value)?;
+        let bytes = self.endian.encode_f32(value);
+        self.data[address..address + 4].copy_from_slice(&bytes);
         Ok(())
     }
 
     pub fn write_u8(&mut self, address: usize, value: u8) -> Result<()> {
         validate_address(address, self.size(), false)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_u8(value)?;
+        self.data[address] = value;
         Ok(())
     }
 
     pub fn write_u16(&mut self, address: usize, value: u16) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_u16::<LittleEndian>(value)?;
+        let bytes = self.endian.encode_u16(value);
+        self.data[address..address + 2].copy_from_slice(&bytes);
         Ok(())
     }
 
     pub fn write_u32(&mut self, address: usize, value: u32) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_u32::<LittleEndian>(value)?;
+        let bytes = self.endian.encode_u32(value);
+        self.data[address..address + 4].copy_from_slice(&bytes);
         Ok(())
     }
 
     pub fn write_i8(&mut self, address: usize, value: i8) -> Result<()> {
         validate_address(address, self.size(), false)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_i8(value)?;
+        self.data[address] = value as u8;
         Ok(())
     }
 
     pub fn write_i16(&mut self, address: usize, value: i16) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 2, self.size(), true)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_i16::<LittleEndian>(value)?;
+        let bytes = self.endian.encode_i16(value);
+        self.data[address..address + 2].copy_from_slice(&bytes);
         Ok(())
     }
 
     pub fn write_i32(&mut self, address: usize, value: i32) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let mut cursor = Cursor::new(&mut self.data);
-        cursor.seek(SeekFrom::Start(address as u64))?;
-        cursor.write_i32::<LittleEndian>(value)?;
+        let bytes = self.endian.encode_i32(value);
+        self.data[address..address + 4].copy_from_slice(&bytes);
         Ok(())
     }
 
@@ -656,6 +635,7 @@ impl BinArchive {
 mod tests {
     use super::BinArchive;
     use crate::utils::load_test_file;
+    use crate::Endian;
     use maplit::hashmap;
     use std::collections::{HashMap, HashSet};
 
@@ -666,6 +646,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let archive2 = BinArchive::new();
         assert_eq!(archive.size(), 4);
@@ -687,6 +668,7 @@ mod tests {
                 0 => vec!["Assessment".to_string()],
                 4 => labels.clone()
             },
+            endian: Endian::Little,
         };
         let other = BinArchive {
             data: vec![0, 0, 0, 0, 5, 0, 0, 1, 4, 12, 0, 1, 16, 12, 0, 2],
@@ -700,6 +682,7 @@ mod tests {
                 4 => vec!["Assessment".to_string()],
                 8 => labels.clone()
             },
+            endian: Endian::Little,
         };
 
         assert!(source.assert_equal_regions(&other, 0, 4, 12).is_ok());
@@ -712,12 +695,14 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let other = BinArchive {
             data: vec![12, 1, 7, 0],
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
 
         assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
@@ -730,6 +715,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let other = BinArchive {
             data: vec![0, 0, 0, 0],
@@ -738,6 +724,7 @@ mod tests {
                 0 => 4
             },
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
 
         assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
@@ -752,6 +739,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let other = BinArchive {
             data: vec![0, 0, 0, 0],
@@ -760,6 +748,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
 
         assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
@@ -774,6 +763,7 @@ mod tests {
             labels: hashmap! {
                 4 => vec!["Severa".to_string()]
             },
+            endian: Endian::Little,
         };
         let other = BinArchive {
             data: vec![0, 0, 0, 0],
@@ -782,6 +772,7 @@ mod tests {
             labels: hashmap! {
                 0 => vec!["Selena".to_string()]
             },
+            endian: Endian::Little,
         };
 
         assert!(source.assert_equal_regions(&other, 4, 0, 4).is_err());
@@ -798,6 +789,7 @@ mod tests {
                 0 => vec!["Test".to_string()],
                 4 => labels.clone()
             },
+            endian: Endian::Little,
         };
         let labels = archive.get_labels();
         assert_eq!(
@@ -817,6 +809,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_f32(4);
         let result2 = archive.read_f32(8);
@@ -832,6 +825,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_u8(1);
         let result2 = archive.read_u8(2);
@@ -847,6 +841,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_u16(2);
         let result2 = archive.read_u16(8);
@@ -864,6 +859,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_u32(4);
         let result2 = archive.read_u32(8);
@@ -879,6 +875,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_i8(1);
         let result2 = archive.read_i8(2);
@@ -894,6 +891,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_i16(2);
         let result2 = archive.read_i16(8);
@@ -911,6 +909,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_u32(4);
         let result2 = archive.read_u32(8);
@@ -926,6 +925,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected1: Vec<u8> = vec![0x14, 0x11, 0x15];
         let result1 = archive.read_bytes(1, 3);
@@ -946,6 +946,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_string(4);
         let result2 = archive.read_string(8);
@@ -965,6 +966,7 @@ mod tests {
                 4 => 0
             },
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.read_pointer(4);
         let result2 = archive.read_pointer(8);
@@ -989,6 +991,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels.clone()
             },
+            endian: Endian::Little,
         };
         let result1 = archive.read_labels(4);
         let result2 = archive.read_labels(8);
@@ -1008,6 +1011,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, String> = HashMap::new();
         let result1 = archive.delete_string(4);
@@ -1028,6 +1032,7 @@ mod tests {
                 4 => 0
             },
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, usize> = HashMap::new();
         let result1 = archive.delete_pointer(4);
@@ -1053,6 +1058,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels.clone()
             },
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = HashMap::new();
         let result1 = archive.delete_labels(4);
@@ -1078,6 +1084,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels.clone()
             },
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = hashmap! {
             4 => vec!["Owain".to_string(), "Inigo".to_string()]
@@ -1096,6 +1103,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0x3F, 0];
         let result1 = archive.write_f32(4, 0.5);
@@ -1114,6 +1122,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0x23];
         let result1 = archive.write_u8(1, 0x23);
@@ -1130,6 +1139,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0x12, 0x11, 0];
         let result1 = archive.write_u16(2, 0x1112);
@@ -1148,6 +1158,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0x12, 0x11, 0x22, 0x23, 0];
         let result1 = archive.write_u32(4, 0x23221112);
@@ -1164,6 +1175,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0x23];
         let result1 = archive.write_i8(1, 0x23);
@@ -1180,6 +1192,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0x12, 0x11, 0];
         let result1 = archive.write_i16(2, 0x1112);
@@ -1198,6 +1211,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0x12, 0x11, 0x22, 0x23, 0];
         let result1 = archive.write_i32(4, 0x23221112);
@@ -1215,6 +1229,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0xFE, 0xFF];
         let result1 = archive.write_bytes(1, &bytes);
@@ -1233,6 +1248,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, String> = hashmap! {
             4 => "test".to_string()
@@ -1251,6 +1267,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, usize> = hashmap! {
             4 => 0
@@ -1274,6 +1291,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = hashmap! {
             4 => labels.clone(),
@@ -1301,6 +1319,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels1
             },
+            endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = hashmap! {
             0 => vec!["test".to_string()],
@@ -1330,6 +1349,7 @@ mod tests {
                 0 => vec!["test".to_string()],
                 4 => labels
             },
+            endian: Endian::Little,
         };
         let search1 = archive.find_label_address("Selena");
         let search2 = archive.find_label_address("Severa");
@@ -1352,6 +1372,7 @@ mod tests {
                 8 => 0
             },
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
 
         let mut expected = HashSet::new();
@@ -1380,6 +1401,7 @@ mod tests {
                 ],
                 8 => vec!["Selena".to_string()]
             },
+            endian: Endian::Little,
         };
         assert_eq!(archive.all_labels(), expected);
     }
@@ -1391,6 +1413,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0];
         archive.allocate_at_end(4);
@@ -1405,6 +1428,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            endian: Endian::Little,
         };
         let result1 = archive.allocate(2, 4, false);
         let result2 = archive.allocate(0, 3, false);
@@ -1437,7 +1461,7 @@ mod tests {
     #[test]
     fn allocate_no_label_shift() {
         let bytes = load_test_file("Allocate_NoLabelShift.bin");
-        let mut archive = BinArchive::from_bytes(&bytes).unwrap();
+        let mut archive = BinArchive::from_bytes(&bytes, Endian::Little).unwrap();
         assert!(archive.allocate(0x8, 0x10, false).is_ok());
         assert_eq!(
             archive.read_labels(0x8).unwrap().unwrap(),
@@ -1453,7 +1477,7 @@ mod tests {
     #[test]
     fn allocate_no_destination_shift() {
         let bytes = load_test_file("Allocate_NoDestinationShift.bin");
-        let mut archive = BinArchive::from_bytes(&bytes).unwrap();
+        let mut archive = BinArchive::from_bytes(&bytes, Endian::Little).unwrap();
         assert!(archive.allocate(0x10, 0x10, false).is_ok());
         assert_eq!(archive.read_pointer(0x8).unwrap().unwrap(), 0x10);
         assert!(archive.allocate(0xC, 0x10, false).is_ok());
@@ -1493,7 +1517,7 @@ mod tests {
     ) {
         let bytes = load_test_file(source_file_name);
         let expected = load_test_file(result_file_name);
-        let result = BinArchive::from_bytes(&bytes);
+        let result = BinArchive::from_bytes(&bytes, Endian::Little);
         assert!(result.is_ok());
         let mut archive = result.unwrap();
         let result = archive.allocate(address, count, false);
@@ -1512,7 +1536,7 @@ mod tests {
     ) {
         let bytes = load_test_file(source_file_name);
         let expected = load_test_file(result_file_name);
-        let result = BinArchive::from_bytes(&bytes);
+        let result = BinArchive::from_bytes(&bytes, Endian::Little);
         assert!(result.is_ok());
         let mut archive = result.unwrap();
         let result = archive.deallocate(address, count, false);
@@ -1525,7 +1549,7 @@ mod tests {
 
     fn test_archive_for_success(file_name: &str) {
         let bytes = load_test_file(file_name);
-        let result = BinArchive::from_bytes(&bytes);
+        let result = BinArchive::from_bytes(&bytes, Endian::Little);
         assert!(result.is_ok());
         let result = result.unwrap().serialize();
         assert!(result.is_ok());
@@ -1535,7 +1559,7 @@ mod tests {
 
     fn test_archive_for_error(file_name: &str) {
         let bytes = load_test_file(file_name);
-        let result = BinArchive::from_bytes(&bytes);
+        let result = BinArchive::from_bytes(&bytes, Endian::Little);
         assert!(result.is_err());
     }
 }

@@ -1,6 +1,6 @@
 use crate::bin_archive::BinArchive;
 use crate::bin_streams::BinArchiveReader;
-use crate::ArcError;
+use crate::{ArcError, Endian};
 use std::collections::HashMap;
 
 type Result<T> = std::result::Result<T, ArcError>;
@@ -15,7 +15,7 @@ struct ArcEntry {
 
 pub fn from_bytes(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
     // Read archive and labels.
-    let archive = BinArchive::from_bytes(bytes)?;
+    let archive = BinArchive::from_bytes(bytes, Endian::Little)?;
     let count_address = archive
         .find_label_address("Count")
         .ok_or(ArcError::NoCount)?;
