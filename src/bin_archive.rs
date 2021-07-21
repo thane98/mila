@@ -221,6 +221,7 @@ impl BinArchive {
         }
 
         let mut archive = BinArchive::new();
+        archive.endian = endian;
         cursor.seek(SeekFrom::Start(0x20))?;
         archive.data.resize(data_size as usize, 0);
         cursor.read_exact(&mut archive.data)?;
