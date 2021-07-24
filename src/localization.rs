@@ -29,10 +29,13 @@ pub struct FE13PathLocalizer;
 pub struct FE14PathLocalizer;
 #[derive(Copy, Clone)]
 pub struct FE15PathLocalizer;
+#[derive(Copy, Clone)]
+pub struct FE10PathLocalizer;
 
 #[derive(Copy, Clone)]
 pub enum PathLocalizer {
     NoOp(NoOpPathLocalizer),
+    FE10(FE10PathLocalizer),
     FE13(FE13PathLocalizer),
     FE14(FE14PathLocalizer),
     FE15(FE15PathLocalizer),
@@ -42,6 +45,7 @@ impl PathLocalizer {
     pub fn localize(&self, path: &str, language: &Language) -> Result<String> {
         match self {
             PathLocalizer::NoOp(p) => p.localize(path),
+            PathLocalizer::FE10(p) => p.localize(path, language),
             PathLocalizer::FE13(p) => p.localize(path, language),
             PathLocalizer::FE14(p) => p.localize(path, language),
             PathLocalizer::FE15(p) => p.localize(path, language),
@@ -52,6 +56,25 @@ impl PathLocalizer {
 impl NoOpPathLocalizer {
     fn localize(&self, path: &str) -> Result<String> {
         Ok(path.to_string())
+    }
+}
+
+impl FE10PathLocalizer {
+    fn localize(&self, path: &str, language: &Language) -> Result<String> {
+        let mut result = String::new();
+        let path_info = Path::new(path);
+        let dir_name = get_parent_as_string(path_info)?;
+        let file_name = get_file_name(path_info)?;
+        result.push_str(&dir_name);
+        match language {
+            Language::EnglishNA | Language::EnglishEU => result.push_str("/e_"),
+            Language::Japanese => result.push_str("/"),
+            _ => {
+                return Err(LocalizationError::UnsupportedLanguage);
+            }
+        }
+        result.push_str(&file_name);
+        Ok(result)
     }
 }
 

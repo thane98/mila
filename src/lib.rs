@@ -42,7 +42,7 @@ pub use layered_filesystem::LayeredFilesystem;
 pub use lz10::LZ10CompressionFormat;
 pub use lz13::LZ13CompressionFormat;
 pub use pixel_encodings::ColorFormat;
-pub use text_archive::{TextArchiveFormat, TextArchive};
+pub use text_archive::{TextArchive, TextArchiveFormat};
 pub use texture::Texture;
 
 pub use errors::{
@@ -51,5 +51,6 @@ pub use errors::{
     TextureDecodeError, TextureParseError,
 };
 pub use localization::{
-    FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, NoOpPathLocalizer, PathLocalizer,
+    FE10PathLocalizer, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, NoOpPathLocalizer,
+    PathLocalizer,
 };

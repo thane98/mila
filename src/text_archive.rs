@@ -62,7 +62,11 @@ impl TextArchive {
         TextArchive::from_archive(&bin_archive, format, endian)
     }
 
-    pub fn from_archive(archive: &BinArchive, format: TextArchiveFormat, endian: Endian) -> Result<Self> {
+    pub fn from_archive(
+        archive: &BinArchive,
+        format: TextArchiveFormat,
+        endian: Endian,
+    ) -> Result<Self> {
         let mut reader = BinArchiveReader::new(archive, 0);
         let mut text_archive = TextArchive::new(format, endian);
         if let TextArchiveFormat::Unicode = format {

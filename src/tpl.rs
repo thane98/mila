@@ -112,8 +112,7 @@ impl Tpl {
                 image_width,
                 image_height,
             );
-            let decoded_image_data =
-                image_format.decode_indexed(&cropped_image, &rgba_palette)?;
+            let decoded_image_data = image_format.decode_indexed(&cropped_image, &rgba_palette)?;
             textures.push(Texture {
                 filename: String::new(),
                 height: image_height,
