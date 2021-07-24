@@ -592,7 +592,7 @@ impl AssetBinary {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut archive = BinArchive::new();
+        let mut archive = BinArchive::new(crate::Endian::Little);
         archive.allocate_at_end(4);
         archive.write_u32(0, self.flags)?;
         for spec in &self.specs {
@@ -606,7 +606,7 @@ impl AssetBinary {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{Endian, utils::load_test_file};
+    use crate::{utils::load_test_file, Endian};
 
     #[test]
     fn round_trip() {

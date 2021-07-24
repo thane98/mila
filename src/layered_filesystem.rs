@@ -1,6 +1,11 @@
 use normpath::PathExt;
 
-use crate::{Endian, LayeredFilesystemError, TextArchive, Texture, arc, bch, cgfx, ctpk};
+use crate::text_archive::TextArchiveFormat;
+use crate::tpl::Tpl;
+use crate::{
+    arc, bch, cgfx, ctpk, Endian, LZ10CompressionFormat, LayeredFilesystemError, NoOpPathLocalizer,
+    TextArchive, Texture,
+};
 use crate::{
     BinArchive, CompressionFormat, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, Game,
     LZ13CompressionFormat, Language, PathLocalizer,
@@ -17,6 +22,7 @@ pub struct LayeredFilesystem {
     game: Game,
     language: Language,
     endian: Endian,
+    text_archive_format: TextArchiveFormat,
 }
 
 impl Clone for LayeredFilesystem {
@@ -41,9 +47,7 @@ impl LayeredFilesystem {
             Game::FE9 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
-            Game::FE10 => {
-                return Err(LayeredFilesystemError::UnsupportedGame);
-            }
+            Game::FE10 => CompressionFormat::LZ10(LZ10CompressionFormat {}),
             Game::FE11 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
@@ -55,12 +59,8 @@ impl LayeredFilesystem {
             Game::FE15 => CompressionFormat::LZ13(LZ13CompressionFormat {}),
         };
         let path_localizer: PathLocalizer = match game {
-            Game::FE9 => {
-                return Err(LayeredFilesystemError::UnsupportedGame);
-            }
-            Game::FE10 => {
-                return Err(LayeredFilesystemError::UnsupportedGame);
-            }
+            Game::FE9 => PathLocalizer::NoOp(NoOpPathLocalizer {}),
+            Game::FE10 => PathLocalizer::NoOp(NoOpPathLocalizer {}),
             Game::FE11 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
             }
@@ -74,6 +74,10 @@ impl LayeredFilesystem {
         let endian = match game {
             Game::FE9 | Game::FE10 => Endian::Big,
             _ => Endian::Little,
+        };
+        let text_archive_format = match game {
+            Game::FE9 | Game::FE10 => TextArchiveFormat::ShiftJIS,
+            _ => TextArchiveFormat::Unicode,
         };
 
         let mut canonical_layers: Vec<String> = Vec::new();
@@ -89,6 +93,7 @@ impl LayeredFilesystem {
             game,
             language,
             endian,
+            text_archive_format,
         })
     }
 
@@ -187,8 +192,13 @@ impl LayeredFilesystem {
 
     pub fn read_text_archive(&self, path: &str, localized: bool) -> Result<TextArchive> {
         let bytes = self.read(path, localized)?;
-        let archive = TextArchive::from_bytes(&bytes)?;
+        let archive = TextArchive::from_bytes(&bytes, self.text_archive_format, self.endian)?;
         Ok(archive)
+    }
+
+    pub fn read_tpl_textures(&self, path: &str, localized: bool) -> Result<Vec<Texture>> {
+        let bytes = self.read(path, localized)?;
+        Ok(Tpl::extract_textures(&bytes)?)
     }
 
     pub fn read_bch_textures(
@@ -274,7 +284,15 @@ impl LayeredFilesystem {
     pub fn language(&self) -> Language {
         self.language
     }
-}
+
+    pub fn endian(&self) -> Endian {
+        self.endian
+    }
+
+    pub fn text_archive_format(&self) -> TextArchiveFormat {
+        self.text_archive_format
+    }
+ }
 
 #[cfg(test)]
 mod test {

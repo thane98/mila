@@ -43,7 +43,7 @@ pub enum ArchiveError {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
-    
+
     #[error(transparent)]
     EndianAwareIOError(#[from] EndianAwareIOError),
 
@@ -152,8 +152,29 @@ pub enum TextureDecodeError {
     #[error("Unsupported format.")]
     UnsupportedFormat,
 
+    #[error("Unaligned data.")]
+    UnalignedData,
+
+    #[error("Attempted to perform an indexed operation on an unindexed color format.")]
+    NotIndexed,
+
+    #[error("Format requires a palette for encoding and decoding.")]
+    NoPalette,
+
+    #[error("Requested index in palette is out of bounds.")]
+    OutOfBoundsIndex,
+
+    #[error("Block size is larger than texture dimensions.")]
+    BadBlockSize,
+
+    #[error("Texture dimensions are not consistent with input size.")]
+    BadDimensions,
+
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    EndianAwareIOError(#[from] EndianAwareIOError),
 }
 
 #[derive(Error, Debug)]
@@ -163,6 +184,9 @@ pub enum TextureParseError {
 
     #[error("Failed to decode text.")]
     BadText,
+
+    #[error("Parser error: {0}")]
+    ParserError(String),
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
@@ -192,5 +216,5 @@ pub enum EndianAwareIOError {
     ConversionError,
 
     #[error(transparent)]
-    IOError(#[from] std::io::Error)
+    IOError(#[from] std::io::Error),
 }

@@ -1,6 +1,6 @@
-use crate::{Endian, EndianAwareReader, EndianAwareWriter};
 use crate::encoded_strings::{to_shift_jis, EncodedStringReader};
 use crate::errors::ArchiveError;
+use crate::{Endian, EndianAwareReader, EndianAwareWriter};
 use linked_hash_map::LinkedHashMap;
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -148,13 +148,13 @@ fn adjust_pointers(
 }
 
 impl BinArchive {
-    pub fn new() -> Self {
+    pub fn new(endian: Endian) -> Self {
         BinArchive {
             data: Vec::new(),
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
-            endian: Endian::Little,
+            endian,
         }
     }
 
@@ -220,8 +220,7 @@ impl BinArchive {
             return Err(ArchiveError::ArchiveTooSmall);
         }
 
-        let mut archive = BinArchive::new();
-        archive.endian = endian;
+        let mut archive = BinArchive::new(endian);
         cursor.seek(SeekFrom::Start(0x20))?;
         archive.data.resize(data_size as usize, 0);
         cursor.read_exact(&mut archive.data)?;
@@ -661,7 +660,7 @@ mod tests {
             labels: HashMap::new(),
             endian: Endian::Little,
         };
-        let archive2 = BinArchive::new();
+        let archive2 = BinArchive::new(Endian::Little);
         assert_eq!(archive.size(), 4);
         assert_eq!(archive2.size(), 0);
     }

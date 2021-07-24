@@ -86,6 +86,12 @@ impl<'a> BinArchiveReader<'a> {
         Ok(value)
     }
 
+    pub fn read_c_string(&mut self) -> Result<Option<String>> {
+        let value = self.archive.read_c_string(self.position)?;
+        self.position += 4;
+        Ok(value)
+    }
+
     pub fn read_label(&mut self, index: usize) -> Result<Option<String>> {
         Ok(match self.archive.read_labels(index)? {
             Some(bucket) => bucket.first().map(|x| x.to_owned()),

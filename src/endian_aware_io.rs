@@ -1,4 +1,7 @@
-use std::{convert::TryFrom, io::{Cursor, Read, Write}};
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Read, Write},
+};
 
 use crate::EndianAwareIOError;
 
@@ -167,11 +170,15 @@ mod test {
     fn decode_i32() {
         assert_eq!(
             0x11121314,
-            Endian::Little.decode_i32(&vec![0x14, 0x13, 0x12, 0x11]).unwrap()
+            Endian::Little
+                .decode_i32(&vec![0x14, 0x13, 0x12, 0x11])
+                .unwrap()
         );
         assert_eq!(
             0x11121314,
-            Endian::Big.decode_i32(&vec![0x11, 0x12, 0x13, 0x14]).unwrap()
+            Endian::Big
+                .decode_i32(&vec![0x11, 0x12, 0x13, 0x14])
+                .unwrap()
         );
     }
 
@@ -179,11 +186,15 @@ mod test {
     fn decode_f32() {
         assert_eq!(
             0.5,
-            Endian::Little.decode_f32(&vec![0x00, 0x00, 0x00, 0x3F]).unwrap()
+            Endian::Little
+                .decode_f32(&vec![0x00, 0x00, 0x00, 0x3F])
+                .unwrap()
         );
         assert_eq!(
             0.5,
-            Endian::Big.decode_f32(&vec![0x3F, 0x00, 0x00, 0x00]).unwrap()
+            Endian::Big
+                .decode_f32(&vec![0x3F, 0x00, 0x00, 0x00])
+                .unwrap()
         );
     }
 
@@ -195,8 +206,14 @@ mod test {
 
     #[test]
     fn encode_u32() {
-        assert_eq!(vec![0x13, 0x12, 0x14, 0xFE], Endian::Little.encode_u32(0xFE141213));
-        assert_eq!(vec![0xFE, 0x14, 0x12, 0x13], Endian::Big.encode_u32(0xFE141213));
+        assert_eq!(
+            vec![0x13, 0x12, 0x14, 0xFE],
+            Endian::Little.encode_u32(0xFE141213)
+        );
+        assert_eq!(
+            vec![0xFE, 0x14, 0x12, 0x13],
+            Endian::Big.encode_u32(0xFE141213)
+        );
     }
 
     #[test]
@@ -207,8 +224,14 @@ mod test {
 
     #[test]
     fn encode_i32() {
-        assert_eq!(vec![0x15, 0x14, 0x13, 0x12], Endian::Little.encode_i32(0x12131415));
-        assert_eq!(vec![0x12, 0x13, 0x14, 0x15], Endian::Big.encode_i32(0x12131415));
+        assert_eq!(
+            vec![0x15, 0x14, 0x13, 0x12],
+            Endian::Little.encode_i32(0x12131415)
+        );
+        assert_eq!(
+            vec![0x12, 0x13, 0x14, 0x15],
+            Endian::Big.encode_i32(0x12131415)
+        );
     }
 
     #[test]
