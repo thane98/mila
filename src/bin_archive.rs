@@ -158,6 +158,56 @@ impl BinArchive {
         }
     }
 
+    /// Older versions of the bin archive format use separate sections for
+    /// text data vs. label data. This causes text data to be registered as
+    /// normal pointers by this parser.
+    /// This function can be used to convert them to regular text pointers.
+    pub fn to_modern_format(old_archive: &BinArchive, ptr_cutoff: usize) -> Result<BinArchive> {
+        if ptr_cutoff > old_archive.size() {
+            return Err(ArchiveError::OtherError("Bad pointer cutoff.".to_string()));
+        }
+        let mut new_archive = BinArchive::new(old_archive.endian);
+        new_archive
+            .data
+            .extend_from_slice(&old_archive.data[0..ptr_cutoff]);
+        new_archive.labels.extend(
+            old_archive
+                .labels
+                .clone()
+                .into_iter()
+                .filter(|(a, _)| *a < ptr_cutoff),
+        );
+        new_archive.text.extend(
+            old_archive
+                .text
+                .clone()
+                .into_iter()
+                .filter(|(a, _)| *a < ptr_cutoff),
+        );
+        new_archive.pointers.extend(
+            old_archive
+                .pointers
+                .clone()
+                .into_iter()
+                .filter(|(a, b)| *a < ptr_cutoff && *b < ptr_cutoff),
+        );
+        new_archive.text.extend(
+            old_archive
+                .pointers
+                .iter()
+                .filter(|(_, b)| **b >= ptr_cutoff)
+                .map(|(a, _)| {
+                    old_archive
+                        .read_c_string(*a)
+                        .unwrap_or(None)
+                        .map(|r| (*a, r))
+                })
+                .filter(|r| r.is_some())
+                .map(|r| r.unwrap()),
+        );
+        Ok(new_archive)
+    }
+
     pub fn assert_equal_regions(
         &self,
         other: &BinArchive,
@@ -650,6 +700,41 @@ mod tests {
     use crate::Endian;
     use maplit::hashmap;
     use std::collections::{HashMap, HashSet};
+
+    #[test]
+    fn to_modern_format() {
+        let input = BinArchive {
+            data: vec![0, 0, 0, 0, 12, 51, 5, 0, 1, 2, 3, 4, 65, 66, 67, 0],
+            text: HashMap::new(),
+            pointers: hashmap! {
+                0 => 12,
+                8 => 4
+            },
+            labels: hashmap! {
+                4 => vec!["label1".to_string(), "label2".to_string()]
+            },
+            endian: Endian::Big,
+        };
+        let expected = BinArchive {
+            data: vec![0, 0, 0, 0, 12, 51, 5, 0, 1, 2, 3, 4],
+            text: hashmap! {
+                0 => "ABC".to_string()
+            },
+            pointers: hashmap! {
+                8 => 4
+            },
+            labels: hashmap! {
+                4 => vec!["label1".to_string(), "label2".to_string()]
+            },
+            endian: Endian::Big,
+        };
+
+        let converted = BinArchive::to_modern_format(&input, 12).unwrap();
+        assert!(expected.text == converted.text);
+        assert!(expected.data == converted.data);
+        assert!(expected.pointers == converted.pointers);
+        assert!(expected.labels == converted.labels);
+    }
 
     #[test]
     fn size() {
