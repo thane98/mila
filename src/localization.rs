@@ -20,6 +20,16 @@ fn get_file_name(path: &Path) -> Result<String> {
     }
 }
 
+fn get_parent_and_file_name(path: &Path) -> Result<(String, String)> {
+    let parent = get_parent_as_string(path)?;
+    let file_name = get_file_name(path)?;
+    if parent.trim().is_empty() {
+        Ok((file_name, String::new()))
+    } else {
+        Ok((parent, file_name))
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct NoOpPathLocalizer;
 
@@ -63,8 +73,7 @@ impl FE10PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);
-        let dir_name = get_parent_as_string(path_info)?;
-        let file_name = get_file_name(path_info)?;
+        let (dir_name, file_name) = get_parent_and_file_name(path_info)?;
         result.push_str(&dir_name);
         match language {
             Language::EnglishNA | Language::EnglishEU => result.push_str("/e_"),
@@ -82,8 +91,7 @@ impl FE13PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);
-        let dir_name = get_parent_as_string(path_info)?;
-        let file_name = get_file_name(path_info)?;
+        let (dir_name, file_name) = get_parent_and_file_name(path_info)?;
         result.push_str(&dir_name);
         match language {
             Language::EnglishNA => result.push_str("/E/"),
@@ -106,8 +114,7 @@ impl FE14PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);
-        let dir_name = get_parent_as_string(path_info)?;
-        let file_name = get_file_name(path_info)?;
+        let (dir_name, file_name) = get_parent_and_file_name(path_info)?;
         result.push_str(&dir_name);
         match language {
             Language::EnglishNA => result.push_str("/@E/"),
@@ -130,8 +137,7 @@ impl FE15PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
         let mut result = String::new();
         let path_info = Path::new(path);
-        let dir_name = get_parent_as_string(path_info)?;
-        let file_name = get_file_name(path_info)?;
+        let (dir_name, file_name) = get_parent_and_file_name(path_info)?;
         result.push_str(&dir_name);
         match language {
             Language::EnglishNA => result.push_str("/@NOA_EN/"),
@@ -167,6 +173,22 @@ mod test {
         let path = localizer.localize("m/GameData.bin.lz", &Language::Spanish);
         assert!(path.is_ok());
         assert_eq!(&path.unwrap(), "m/S/GameData.bin.lz");
+    }
+
+    #[test]
+    fn localize_fe14_english_directory() {
+        let localizer = FE14PathLocalizer {};
+        let path = localizer.localize("m/", &Language::EnglishNA);
+        assert!(path.is_ok());
+        assert_eq!(&path.unwrap(), "m/@E/");
+    }
+
+    #[test]
+    fn localize_fe14_japanese_directory() {
+        let localizer = FE14PathLocalizer {};
+        let path = localizer.localize("m/", &Language::Japanese);
+        assert!(path.is_ok());
+        assert_eq!(&path.unwrap(), "m/");
     }
 
     #[test]

@@ -97,13 +97,17 @@ impl LayeredFilesystem {
         })
     }
 
-    pub fn list(&self, path: &str, glob: Option<&str>) -> Result<Vec<String>> {
+    pub fn list(&self, path: &str, glob: Option<&str>, localized: bool) -> Result<Vec<String>> {
+        let path = if localized {
+            self.path_localizer.localize(path, &self.language)?
+        } else {
+            path.to_string()
+        };
         let mut result: HashSet<String> = HashSet::new();
         for layer in &self.layers {
-            // TODO: Instead of eating the error, check if dir exists before listing.
-            match self.list_dir(layer, path, glob.clone()) {
-                Ok(paths) => result.extend(paths.into_iter()),
-                Err(_) => {}
+            let layer_path = Path::new(layer).join(path.to_string());
+            if layer_path.exists() && layer_path.is_dir() {
+                result.extend(self.list_dir(layer, &path, glob.clone())?.into_iter());
             }
         }
         let mut result: Vec<String> = result.into_iter().collect();
@@ -339,8 +343,8 @@ mod test {
             Game::FE15,
         )
         .unwrap();
-        let all_files = fs.list("Subdir/", None).unwrap();
-        let text = fs.list("Subdir/", Some("**/*.txt")).unwrap();
+        let all_files = fs.list("Subdir/", None, false).unwrap();
+        let text = fs.list("Subdir/", Some("**/*.txt"), false).unwrap();
         assert_eq!(4, all_files.len());
         assert_eq!(2, text.len());
     }

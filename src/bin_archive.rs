@@ -13,6 +13,7 @@ pub struct BinArchive {
     text: HashMap<usize, String>,
     pointers: HashMap<usize, usize>,
     labels: HashMap<usize, Vec<String>>,
+    cstrings: HashMap<String, Vec<usize>>,
     endian: Endian,
 }
 
@@ -154,58 +155,9 @@ impl BinArchive {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian,
         }
-    }
-
-    /// Older versions of the bin archive format use separate sections for
-    /// text data vs. label data. This causes text data to be registered as
-    /// normal pointers by this parser.
-    /// This function can be used to convert them to regular text pointers.
-    pub fn to_modern_format(old_archive: &BinArchive, ptr_cutoff: usize) -> Result<BinArchive> {
-        if ptr_cutoff > old_archive.size() {
-            return Err(ArchiveError::OtherError("Bad pointer cutoff.".to_string()));
-        }
-        let mut new_archive = BinArchive::new(old_archive.endian);
-        new_archive
-            .data
-            .extend_from_slice(&old_archive.data[0..ptr_cutoff]);
-        new_archive.labels.extend(
-            old_archive
-                .labels
-                .clone()
-                .into_iter()
-                .filter(|(a, _)| *a < ptr_cutoff),
-        );
-        new_archive.text.extend(
-            old_archive
-                .text
-                .clone()
-                .into_iter()
-                .filter(|(a, _)| *a < ptr_cutoff),
-        );
-        new_archive.pointers.extend(
-            old_archive
-                .pointers
-                .clone()
-                .into_iter()
-                .filter(|(a, b)| *a < ptr_cutoff && *b < ptr_cutoff),
-        );
-        new_archive.text.extend(
-            old_archive
-                .pointers
-                .iter()
-                .filter(|(_, b)| **b >= ptr_cutoff)
-                .map(|(a, _)| {
-                    old_archive
-                        .read_c_string(*a)
-                        .unwrap_or(None)
-                        .map(|r| (*a, r))
-                })
-                .filter(|r| r.is_some())
-                .map(|r| r.unwrap()),
-        );
-        Ok(new_archive)
     }
 
     pub fn assert_equal_regions(
@@ -324,16 +276,38 @@ impl BinArchive {
         let mut raw_text_offsets: HashMap<String, usize> = HashMap::new();
         let mut cursor: Cursor<&mut [u8]> = Cursor::new(&mut data);
 
-        let mut pointers: Vec<(&usize, &usize)> = self.pointers.iter().collect();
-        pointers.sort_by(|a, b| a.0.cmp(b.0));
-        for (source, destination) in pointers {
-            cursor.seek(SeekFrom::Start(*source as u64))?;
-            cursor.write_u32(*destination as u32, self.endian)?;
-            raw_pointers.push(*source as u32);
+        let mut pointers: Vec<(usize, usize)> = self.pointers.clone().into_iter().collect();
+        let mut cstrings: Vec<(&String, &Vec<usize>)> = self.cstrings.iter().collect();
+        let mut labels: Vec<(&usize, &Vec<String>)> = self.labels.iter().collect();
+        let mut text: Vec<(&usize, &String)> = self.text.iter().collect();
+
+        let mut raw_cstrings: Vec<u8> = Vec::new();
+        let mut offset_tracker: HashMap<String, usize> = HashMap::new();
+        cstrings.sort_by(|a, b| a.0.cmp(b.0));
+        for (text, addresses) in cstrings {
+            let offset = add_text(&mut raw_cstrings, &mut offset_tracker, text)?;
+            let text_address = self.data.len() + offset;
+            for address in addresses {
+                pointers.push((*address, text_address));
+            }
+        }
+        while raw_cstrings.len() % 4 != 0 {
+            raw_cstrings.push(0);
         }
 
-        let mut labels: Vec<(&usize, &Vec<String>)> = self.labels.iter().collect();
-        labels.sort_by(|a, b| a.0.cmp(b.0));
+        pointers.sort_by(|a, b| a.0.cmp(&b.0));
+        for (source, destination) in pointers {
+            cursor.seek(SeekFrom::Start(source as u64))?;
+            cursor.write_u32(destination as u32, self.endian)?;
+            raw_pointers.push(source as u32);
+        }
+
+        if let Endian::Big = self.endian {
+            labels.sort_by(|a, b| a.1.cmp(b.1));
+        } else {
+            labels.sort_by(|a, b| a.0.cmp(b.0));
+        }
+        
         for (address, bucket) in labels {
             for label in bucket {
                 let offset = add_text(&mut raw_text, &mut raw_text_offsets, label)?;
@@ -342,7 +316,7 @@ impl BinArchive {
             }
         }
 
-        let mut text: Vec<(&usize, &String)> = self.text.iter().collect();
+        
         text.sort_by(|a, b| a.0.cmp(b.0));
         let mut ptr_data_pairs: LinkedHashMap<usize, Vec<u32>> = LinkedHashMap::new();
         let text_start =
@@ -372,6 +346,7 @@ impl BinArchive {
 
         let mut bytes: Vec<u8> = Vec::new();
         let file_size = self.data.len()
+            + raw_cstrings.len()
             + (raw_pointers.len() * 4)
             + (raw_labels.len() * 4)
             + raw_text.len()
@@ -379,11 +354,12 @@ impl BinArchive {
         bytes.resize(file_size, 0);
         let mut cursor: Cursor<&mut [u8]> = Cursor::new(&mut bytes);
         cursor.write_u32(file_size as u32, self.endian)?;
-        cursor.write_u32(data.len() as u32, self.endian)?;
+        cursor.write_u32(data.len() as u32 + raw_cstrings.len() as u32, self.endian)?;
         cursor.write_u32(raw_pointers.len() as u32, self.endian)?;
         cursor.write_u32((raw_labels.len() / 2) as u32, self.endian)?;
         cursor.seek(SeekFrom::Start(0x20))?;
         cursor.write(&data)?;
+        cursor.write(&raw_cstrings)?;
         for pointer in raw_pointers {
             cursor.write_u32(pointer, self.endian)?;
         }
@@ -566,6 +542,14 @@ impl BinArchive {
         Ok(())
     }
 
+    pub fn write_c_string(&mut self, address: usize, value: String) -> Result<()> {
+        validate_address(address, self.size(), false)?;
+        validate_address(address + 4, self.size(), true)?;
+        let bucket = self.cstrings.entry(value).or_insert_with(|| Vec::new());
+        bucket.push(address);
+        Ok(())
+    }
+
     pub fn write_string(&mut self, address: usize, value: Option<&str>) -> Result<()> {
         match value {
             Some(value) => {
@@ -702,47 +686,13 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     #[test]
-    fn to_modern_format() {
-        let input = BinArchive {
-            data: vec![0, 0, 0, 0, 12, 51, 5, 0, 1, 2, 3, 4, 65, 66, 67, 0],
-            text: HashMap::new(),
-            pointers: hashmap! {
-                0 => 12,
-                8 => 4
-            },
-            labels: hashmap! {
-                4 => vec!["label1".to_string(), "label2".to_string()]
-            },
-            endian: Endian::Big,
-        };
-        let expected = BinArchive {
-            data: vec![0, 0, 0, 0, 12, 51, 5, 0, 1, 2, 3, 4],
-            text: hashmap! {
-                0 => "ABC".to_string()
-            },
-            pointers: hashmap! {
-                8 => 4
-            },
-            labels: hashmap! {
-                4 => vec!["label1".to_string(), "label2".to_string()]
-            },
-            endian: Endian::Big,
-        };
-
-        let converted = BinArchive::to_modern_format(&input, 12).unwrap();
-        assert!(expected.text == converted.text);
-        assert!(expected.data == converted.data);
-        assert!(expected.pointers == converted.pointers);
-        assert!(expected.labels == converted.labels);
-    }
-
-    #[test]
     fn size() {
         let archive = BinArchive {
             data: vec![0, 0, 0, 0],
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let archive2 = BinArchive::new(Endian::Little);
@@ -765,6 +715,7 @@ mod tests {
                 0 => vec!["Assessment".to_string()],
                 4 => labels.clone()
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let other = BinArchive {
@@ -779,6 +730,7 @@ mod tests {
                 4 => vec!["Assessment".to_string()],
                 8 => labels.clone()
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
 
@@ -792,6 +744,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let other = BinArchive {
@@ -799,6 +752,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
 
@@ -812,6 +766,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let other = BinArchive {
@@ -821,6 +776,7 @@ mod tests {
                 0 => 4
             },
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
 
@@ -836,6 +792,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let other = BinArchive {
@@ -845,6 +802,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
 
@@ -860,6 +818,7 @@ mod tests {
             labels: hashmap! {
                 4 => vec!["Severa".to_string()]
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let other = BinArchive {
@@ -869,6 +828,7 @@ mod tests {
             labels: hashmap! {
                 0 => vec!["Selena".to_string()]
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
 
@@ -886,6 +846,7 @@ mod tests {
                 0 => vec!["Test".to_string()],
                 4 => labels.clone()
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let labels = archive.get_labels();
@@ -906,6 +867,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_f32(4);
@@ -922,6 +884,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_u8(1);
@@ -938,6 +901,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_u16(2);
@@ -956,6 +920,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_u32(4);
@@ -972,6 +937,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_i8(1);
@@ -988,6 +954,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_i16(2);
@@ -1006,6 +973,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_u32(4);
@@ -1022,6 +990,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected1: Vec<u8> = vec![0x14, 0x11, 0x15];
@@ -1043,6 +1012,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_string(4);
@@ -1063,6 +1033,7 @@ mod tests {
                 4 => 0
             },
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_pointer(4);
@@ -1088,6 +1059,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels.clone()
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.read_labels(4);
@@ -1108,6 +1080,7 @@ mod tests {
                 0 => 4,
             },
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Big,
         };
         let expected = Some(String::from("ABC"));
@@ -1130,6 +1103,7 @@ mod tests {
             },
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, String> = HashMap::new();
@@ -1151,6 +1125,7 @@ mod tests {
                 4 => 0
             },
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, usize> = HashMap::new();
@@ -1177,6 +1152,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels.clone()
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = HashMap::new();
@@ -1203,6 +1179,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels.clone()
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = hashmap! {
@@ -1222,6 +1199,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0x3F, 0];
@@ -1241,6 +1219,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0x23];
@@ -1258,6 +1237,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0x12, 0x11, 0];
@@ -1277,6 +1257,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0x12, 0x11, 0x22, 0x23, 0];
@@ -1294,6 +1275,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0x23];
@@ -1311,6 +1293,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0x12, 0x11, 0];
@@ -1330,6 +1313,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0x12, 0x11, 0x22, 0x23, 0];
@@ -1348,6 +1332,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0xFE, 0xFF];
@@ -1367,6 +1352,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, String> = hashmap! {
@@ -1386,6 +1372,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, usize> = hashmap! {
@@ -1410,6 +1397,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = hashmap! {
@@ -1438,6 +1426,7 @@ mod tests {
             labels: hashmap! {
                 4 => labels1
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: HashMap<usize, Vec<String>> = hashmap! {
@@ -1468,6 +1457,7 @@ mod tests {
                 0 => vec!["test".to_string()],
                 4 => labels
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let search1 = archive.find_label_address("Selena");
@@ -1491,6 +1481,7 @@ mod tests {
                 8 => 0
             },
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
 
@@ -1520,6 +1511,7 @@ mod tests {
                 ],
                 8 => vec!["Selena".to_string()]
             },
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         assert_eq!(archive.all_labels(), expected);
@@ -1532,6 +1524,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let expected: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0];
@@ -1547,6 +1540,7 @@ mod tests {
             text: HashMap::new(),
             pointers: HashMap::new(),
             labels: HashMap::new(),
+            cstrings: HashMap::new(),
             endian: Endian::Little,
         };
         let result1 = archive.allocate(2, 4, false);

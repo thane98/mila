@@ -191,6 +191,12 @@ impl<'a> BinArchiveWriter<'a> {
         Ok(())
     }
 
+    pub fn write_c_string(&mut self, value: String) -> Result<()> {
+        self.archive.write_c_string(self.position, value)?;
+        self.position += 4;
+        Ok(())
+    }
+
     pub fn write_string(&mut self, value: Option<&str>) -> Result<()> {
         self.archive.write_string(self.position, value)?;
         self.position += 4;

@@ -4,7 +4,7 @@ use std::cmp::min;
 
 type Result<T> = std::result::Result<T, CompressionError>;
 
-fn get_occurrence_length(
+pub(crate) fn get_occurrence_length(
     bytes: &[u8],
     new_ptr: usize,
     new_length: usize,
