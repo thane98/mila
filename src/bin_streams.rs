@@ -93,8 +93,12 @@ impl<'a> BinArchiveReader<'a> {
     }
 
     pub fn read_label(&mut self, index: usize) -> Result<Option<String>> {
-        Ok(match self.archive.read_labels(index)? {
-            Some(bucket) => bucket.first().map(|x| x.to_owned()),
+        Ok(match self.archive.read_labels(self.position)? {
+            Some(mut bucket) => if index < bucket.len() {
+                Some(bucket.remove(index))
+            } else {
+                None
+            },
             None => None,
         })
     }
