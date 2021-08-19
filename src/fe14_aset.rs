@@ -19,7 +19,7 @@ pub const ANIMATION_NAMES: &'static [&'static str] = &[
     "attack_f",
     "shoot",
     "shoot_c",
-    "evastion",
+    "evasion",
     "dmg_none",
     "dmg_mid",
     "dmg_high",
