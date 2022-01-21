@@ -3,7 +3,7 @@ use normpath::PathExt;
 use crate::text_archive::TextArchiveFormat;
 use crate::tpl::Tpl;
 use crate::{
-    arc, bch, cgfx, ctpk, Endian, FE10PathLocalizer, LZ10CompressionFormat, LayeredFilesystemError,
+    arc, bch, cgfx, ctpk, Endian, FE9PathLocalizer, FE10PathLocalizer, LZ10CompressionFormat, LayeredFilesystemError,
     NoOpPathLocalizer, TextArchive, Texture,
 };
 use crate::{
@@ -44,9 +44,7 @@ impl LayeredFilesystem {
             return Err(LayeredFilesystemError::NoLayers);
         }
         let compression_format: CompressionFormat = match game {
-            Game::FE9 => {
-                return Err(LayeredFilesystemError::UnsupportedGame);
-            }
+            Game::FE9 => CompressionFormat::LZ10(LZ10CompressionFormat {}),
             Game::FE10 => CompressionFormat::LZ10(LZ10CompressionFormat {}),
             Game::FE11 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);
@@ -59,7 +57,7 @@ impl LayeredFilesystem {
             Game::FE15 => CompressionFormat::LZ13(LZ13CompressionFormat {}),
         };
         let path_localizer: PathLocalizer = match game {
-            Game::FE9 => PathLocalizer::NoOp(NoOpPathLocalizer {}),
+            Game::FE9 => PathLocalizer::FE9(FE9PathLocalizer {}),
             Game::FE10 => PathLocalizer::FE10(FE10PathLocalizer {}),
             Game::FE11 => {
                 return Err(LayeredFilesystemError::UnsupportedGame);

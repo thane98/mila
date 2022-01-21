@@ -53,6 +53,6 @@ pub use errors::{
     TextureDecodeError, TextureParseError,
 };
 pub use localization::{
-    FE10PathLocalizer, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, NoOpPathLocalizer,
+    FE9PathLocalizer, FE10PathLocalizer, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, NoOpPathLocalizer,
     PathLocalizer,
 };
