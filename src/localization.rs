@@ -77,19 +77,7 @@ impl NoOpPathLocalizer {
 
 impl FE9PathLocalizer {
     fn localize(&self, path: &str, language: &Language) -> Result<String> {
-        let mut result = String::new();
-        let path_info = Path::new(path);
-        let (dir_name, file_name) = get_parent_and_file_name(path_info)?;
-        result.push_str(&dir_name);
-        match language {
-            Language::EnglishNA | Language::EnglishEU => result.push_str("/e_"),
-            Language::Japanese => result.push_str("/"),
-            _ => {
-                return Err(LocalizationError::UnsupportedLanguage);
-            }
-        }
-        result.push_str(&file_name);
-        Ok(result)
+        Ok(path.to_string())
     }
 }
 
