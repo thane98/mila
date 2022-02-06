@@ -76,7 +76,7 @@ impl NoOpPathLocalizer {
 }
 
 impl FE9PathLocalizer {
-    fn localize(&self, path: &str, language: &Language) -> Result<String> {
+    fn localize(&self, path: &str, _language: &Language) -> Result<String> {
         Ok(path.to_string())
     }
 }

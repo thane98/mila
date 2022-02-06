@@ -1,10 +1,11 @@
+use linked_hash_map::LinkedHashMap;
 use normpath::PathExt;
 
 use crate::text_archive::TextArchiveFormat;
 use crate::tpl::Tpl;
 use crate::{
     arc, bch, cgfx, ctpk, Endian, FE9PathLocalizer, FE10PathLocalizer, LZ10CompressionFormat, LayeredFilesystemError,
-    NoOpPathLocalizer, TextArchive, Texture,
+    TextArchive, Texture, fe9_arc,
 };
 use crate::{
     BinArchive, CompressionFormat, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, Game,
@@ -178,6 +179,12 @@ impl LayeredFilesystem {
             }
         }
         Ok(false)
+    }
+
+    pub fn read_fe9_arc(&self, path: &str, localized: bool) -> Result<LinkedHashMap<String, Vec<u8>>> {
+        let bytes = self.read(path, localized)?;
+        let arc = fe9_arc::parse(&bytes)?;
+        Ok(arc)
     }
 
     pub fn read_arc(&self, path: &str, localized: bool) -> Result<HashMap<String, Vec<u8>>> {

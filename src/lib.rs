@@ -22,6 +22,7 @@ pub mod arc;
 pub mod bch;
 pub mod cgfx;
 pub mod ctpk;
+pub mod fe9_arc;
 pub mod fe14_aset;
 pub mod tpl;
 
