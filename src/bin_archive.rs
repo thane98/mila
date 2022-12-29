@@ -1,7 +1,7 @@
 use crate::encoded_strings::{to_shift_jis, EncodedStringReader};
 use crate::errors::ArchiveError;
 use crate::{Endian, EndianAwareReader, EndianAwareWriter};
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
@@ -318,7 +318,7 @@ impl BinArchive {
 
         
         text.sort_by(|a, b| a.0.cmp(b.0));
-        let mut ptr_data_pairs: LinkedHashMap<usize, Vec<u32>> = LinkedHashMap::new();
+        let mut ptr_data_pairs: IndexMap<usize, Vec<u32>> = IndexMap::new();
         let text_start =
             self.data.len() + (self.pointers.len() + self.text.len() + raw_labels.len()) * 4;
         for (address, string) in text {

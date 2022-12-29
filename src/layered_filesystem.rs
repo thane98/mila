@@ -1,4 +1,4 @@
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use normpath::PathExt;
 
 use crate::text_archive::TextArchiveFormat;
@@ -181,7 +181,7 @@ impl LayeredFilesystem {
         Ok(false)
     }
 
-    pub fn read_fe9_arc(&self, path: &str, localized: bool) -> Result<LinkedHashMap<String, Vec<u8>>> {
+    pub fn read_fe9_arc(&self, path: &str, localized: bool) -> Result<IndexMap<String, Vec<u8>>> {
         let bytes = self.read(path, localized)?;
         let arc = fe9_arc::parse(&bytes)?;
         Ok(arc)

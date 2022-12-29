@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read};
-use linked_hash_map::LinkedHashMap;
 use byteorder::{ReadBytesExt, BigEndian};
+use indexmap::IndexMap;
 use crate::encoded_strings::{EncodedStringReader, to_shift_jis};
 
 type Result<T> = std::result::Result<T, crate::ArchiveError>;
@@ -16,7 +16,7 @@ struct EntryMetadata {
     file_size_unpadded: u32,
 }
 
-pub fn parse(raw: &[u8]) -> Result<LinkedHashMap<String, Vec<u8>>> {
+pub fn parse(raw: &[u8]) -> Result<IndexMap<String, Vec<u8>>> {
     let mut cursor = Cursor::new(raw);
 
     // Validate magic number.
@@ -36,7 +36,7 @@ pub fn parse(raw: &[u8]) -> Result<LinkedHashMap<String, Vec<u8>>> {
     }
 
     // Read the files.
-    let mut entries: LinkedHashMap<String, Vec<u8>> = LinkedHashMap::new();
+    let mut entries: IndexMap<String, Vec<u8>> = IndexMap::new();
     for entry in entry_metadata {
         cursor.set_position(entry.name_address as u64);
         let name = cursor.read_shift_jis_string()?;
@@ -48,7 +48,7 @@ pub fn parse(raw: &[u8]) -> Result<LinkedHashMap<String, Vec<u8>>> {
     Ok(entries)
 }
 
-pub fn serialize(contents: &LinkedHashMap<String, Vec<u8>>) -> Result<Vec<u8>> {
+pub fn serialize(contents: &IndexMap<String, Vec<u8>>) -> Result<Vec<u8>> {
     let header_length = BASE_HEADER_SIZE + contents.len() * METADATA_SIZE;
 
     // Three sections: header, text (file names), contents.

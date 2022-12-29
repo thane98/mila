@@ -1,6 +1,7 @@
+use indexmap::IndexMap;
+
 use crate::encoded_strings::{to_shift_jis, to_utf_16};
 use crate::{BinArchive, BinArchiveReader, EncodedStringReader, Endian, TextArchiveError};
-use linked_hash_map::LinkedHashMap;
 
 type Result<T> = std::result::Result<T, TextArchiveError>;
 
@@ -31,7 +32,7 @@ pub enum TextArchiveFormat {
 
 pub struct TextArchive {
     title: String,
-    entries: LinkedHashMap<String, String>,
+    entries: IndexMap<String, String>,
     dirty: bool,
     format: TextArchiveFormat,
     endian: Endian,
@@ -41,14 +42,14 @@ impl TextArchive {
     pub fn new(format: TextArchiveFormat, endian: Endian) -> Self {
         TextArchive {
             title: "".to_string(),
-            entries: LinkedHashMap::new(),
+            entries: IndexMap::new(),
             dirty: false,
             format,
             endian,
         }
     }
 
-    pub fn get_entries(&self) -> &LinkedHashMap<String, String> {
+    pub fn get_entries(&self) -> &IndexMap<String, String> {
         &self.entries
     }
 
