@@ -89,6 +89,10 @@ impl FE10PathLocalizer {
         result.push_str(&dir_name);
         match language {
             Language::EnglishNA | Language::EnglishEU => result.push_str("/e_"),
+            Language::Spanish => result.push_str("/s_"),
+            Language::German => result.push_str("/d_"),
+            Language::Italian => result.push_str("/i_"),
+            Language::French => result.push_str("/f_"),
             Language::Japanese => result.push_str("/"),
             _ => {
                 return Err(LocalizationError::UnsupportedLanguage);
