@@ -2,7 +2,7 @@ use crate::{ArchiveError, BinArchive, BinArchiveReader, BinArchiveWriter, Endian
 
 type Result<T> = std::result::Result<T, ArchiveError>;
 
-pub const ANIMATION_NAMES: &'static [&'static str] = &[
+pub const ANIMATION_NAMES: &[&str] = &[
     "label",
     "ready",
     "idle_normal",
@@ -267,6 +267,12 @@ pub struct FE14ASet {
     pub sets: Vec<Vec<Option<String>>>,
 }
 
+impl Default for FE14ASet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FE14ASet {
     pub fn new() -> Self {
         FE14ASet {
@@ -350,7 +356,7 @@ impl FE14ASet {
                 let mut set_flags = 0;
                 for bit in 0..32 {
                     let index = flag_set * 32 + bit + 1;
-                    if let Some(_) = set[index] {
+                    if set[index].is_some() {
                         set_flags |= 1 << bit;
                         strings_to_write += 1;
                     }
@@ -380,7 +386,7 @@ impl FE14ASet {
                 }
             }
         }
-        Ok(archive.serialize()?)
+        archive.serialize()
     }
 }
 

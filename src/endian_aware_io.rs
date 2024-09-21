@@ -14,12 +14,14 @@ pub enum Endian {
 }
 
 pub trait EndianAwareReader {
+    #[allow(unused)]
     fn read_u16(&mut self, endian: Endian) -> Result<u16>;
 
     fn read_u32(&mut self, endian: Endian) -> Result<u32>;
 }
 
 pub trait EndianAwareWriter {
+    #[allow(unused)]
     fn write_u16(&mut self, value: u16, endian: Endian) -> Result<()>;
 
     fn write_u32(&mut self, value: u32, endian: Endian) -> Result<()>;
@@ -118,12 +120,12 @@ impl EndianAwareReader for Cursor<&[u8]> {
 
 impl EndianAwareWriter for Cursor<&mut [u8]> {
     fn write_u16(&mut self, value: u16, endian: Endian) -> Result<()> {
-        self.write(&endian.encode_u16(value))?;
+        self.write_all(&endian.encode_u16(value))?;
         Ok(())
     }
 
     fn write_u32(&mut self, value: u32, endian: Endian) -> Result<()> {
-        self.write(&endian.encode_u32(value))?;
+        self.write_all(&endian.encode_u32(value))?;
         Ok(())
     }
 }
@@ -136,9 +138,9 @@ mod test {
     fn decode_u16() {
         assert_eq!(
             0xFE14,
-            Endian::Little.decode_u16(&vec![0x14, 0xFE]).unwrap()
+            Endian::Little.decode_u16(&[0x14, 0xFE]).unwrap()
         );
-        assert_eq!(0xFE14, Endian::Big.decode_u16(&vec![0xFE, 0x14]).unwrap());
+        assert_eq!(0xFE14, Endian::Big.decode_u16(&[0xFE, 0x14]).unwrap());
     }
 
     #[test]
@@ -146,13 +148,13 @@ mod test {
         assert_eq!(
             0xFE131415,
             Endian::Little
-                .decode_u32(&vec![0x15, 0x14, 0x13, 0xFE])
+                .decode_u32(&[0x15, 0x14, 0x13, 0xFE])
                 .unwrap()
         );
         assert_eq!(
             0xFE131415,
             Endian::Big
-                .decode_u32(&vec![0xFE, 0x13, 0x14, 0x15])
+                .decode_u32(&[0xFE, 0x13, 0x14, 0x15])
                 .unwrap()
         );
     }
@@ -161,9 +163,9 @@ mod test {
     fn decode_i16() {
         assert_eq!(
             0x1314,
-            Endian::Little.decode_i16(&vec![0x14, 0x13]).unwrap()
+            Endian::Little.decode_i16(&[0x14, 0x13]).unwrap()
         );
-        assert_eq!(0x1314, Endian::Big.decode_i16(&vec![0x13, 0x14]).unwrap());
+        assert_eq!(0x1314, Endian::Big.decode_i16(&[0x13, 0x14]).unwrap());
     }
 
     #[test]
@@ -171,13 +173,13 @@ mod test {
         assert_eq!(
             0x11121314,
             Endian::Little
-                .decode_i32(&vec![0x14, 0x13, 0x12, 0x11])
+                .decode_i32(&[0x14, 0x13, 0x12, 0x11])
                 .unwrap()
         );
         assert_eq!(
             0x11121314,
             Endian::Big
-                .decode_i32(&vec![0x11, 0x12, 0x13, 0x14])
+                .decode_i32(&[0x11, 0x12, 0x13, 0x14])
                 .unwrap()
         );
     }
@@ -187,13 +189,13 @@ mod test {
         assert_eq!(
             0.5,
             Endian::Little
-                .decode_f32(&vec![0x00, 0x00, 0x00, 0x3F])
+                .decode_f32(&[0x00, 0x00, 0x00, 0x3F])
                 .unwrap()
         );
         assert_eq!(
             0.5,
             Endian::Big
-                .decode_f32(&vec![0x3F, 0x00, 0x00, 0x00])
+                .decode_f32(&[0x3F, 0x00, 0x00, 0x00])
                 .unwrap()
         );
     }

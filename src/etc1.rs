@@ -139,12 +139,10 @@ pub fn decode(pixel_data: &[u8], width: usize, height: usize, with_alpha: bool) 
                                 } else {
                                     table2
                                 }
+                            } else if pixel_x < 2 {
+                                table1
                             } else {
-                                if pixel_x < 2 {
-                                    table1
-                                } else {
-                                    table2
-                                }
+                                table2
                             };
                             let color = if horizontal {
                                 if pixel_y < 2 {
@@ -152,17 +150,15 @@ pub fn decode(pixel_data: &[u8], width: usize, height: usize, with_alpha: bool) 
                                 } else {
                                     &color2
                                 }
+                            } else if pixel_x < 2 {
+                                &color1
                             } else {
-                                if pixel_x < 2 {
-                                    &color1
-                                } else {
-                                    &color2
-                                }
+                                &color2
                             };
 
                             let sign = (signs >> offset) & 1;
                             let amount = if sign == 1 {
-                                table[((amounts >> offset) & 1) as usize] * -1
+                                -table[((amounts >> offset) & 1) as usize]
                             } else {
                                 table[((amounts >> offset) & 1) as usize]
                             };

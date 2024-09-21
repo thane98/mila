@@ -63,8 +63,8 @@ mod test {
         assert!(result.is_ok());
         let files = result.unwrap();
         assert_eq!(2, files.len());
-        assert!(files.get("LZ13Test.bin").is_some());
-        assert!(files.get("LZ13Test.bin.lz").is_some());
+        assert!(files.contains_key("LZ13Test.bin"));
+        assert!(files.contains_key("LZ13Test.bin.lz"));
         assert_eq!(&test_file_1, files.get("LZ13Test.bin").unwrap());
         assert_eq!(&test_file_2, files.get("LZ13Test.bin.lz").unwrap());
     }

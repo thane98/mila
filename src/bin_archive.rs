@@ -69,7 +69,7 @@ fn filter_text_or_labels<T: Clone>(
 ) -> HashMap<usize, T> {
     let range = address..(address + count);
     map.iter()
-        .filter(|(addr, _)| !range.contains(&addr))
+        .filter(|(addr, _)| !range.contains(addr))
         .map(|(addr, value)| (*addr, value.clone()))
         .collect()
 }
@@ -81,7 +81,7 @@ fn filter_pointers(
 ) -> HashMap<usize, usize> {
     let range = address..(address + count);
     map.iter()
-        .filter(|(source, destination)| !(range.contains(&source) || range.contains(&destination)))
+        .filter(|(source, destination)| !(range.contains(source) || range.contains(destination)))
         .map(|(a, b)| (*a, *b))
         .collect()
 }
@@ -228,7 +228,7 @@ impl BinArchive {
         cursor.read_exact(&mut archive.data)?;
         for _ in 0..pointer_count {
             let pointer_address = cursor.read_u32(endian)? as usize;
-            let pointer_value = archive.read_u32(pointer_address as usize)? as usize;
+            let pointer_value = archive.read_u32(pointer_address)? as usize;
             if pointer_value > data_size as usize {
                 let original_position = cursor.position();
                 cursor.seek(SeekFrom::Start((pointer_value + 0x20) as u64))?;
@@ -331,9 +331,7 @@ impl BinArchive {
                     bucket.push(*address as u32);
                 }
                 None => {
-                    let mut bucket: Vec<u32> = Vec::new();
-                    bucket.push(*address as u32);
-                    ptr_data_pairs.insert(offset, bucket);
+                    ptr_data_pairs.insert(offset, vec![*address as u32]);
                 }
             }
         }
@@ -358,15 +356,15 @@ impl BinArchive {
         cursor.write_u32(raw_pointers.len() as u32, self.endian)?;
         cursor.write_u32((raw_labels.len() / 2) as u32, self.endian)?;
         cursor.seek(SeekFrom::Start(0x20))?;
-        cursor.write(&data)?;
-        cursor.write(&raw_cstrings)?;
+        cursor.write_all(&data)?;
+        cursor.write_all(&raw_cstrings)?;
         for pointer in raw_pointers {
             cursor.write_u32(pointer, self.endian)?;
         }
         for label_part in raw_labels {
             cursor.write_u32(label_part, self.endian)?;
         }
-        cursor.write(&raw_text)?;
+        cursor.write_all(&raw_text)?;
         Ok(bytes)
     }
 
@@ -545,7 +543,7 @@ impl BinArchive {
     pub fn write_c_string(&mut self, address: usize, value: String) -> Result<()> {
         validate_address(address, self.size(), false)?;
         validate_address(address + 4, self.size(), true)?;
-        let bucket = self.cstrings.entry(value).or_insert_with(|| Vec::new());
+        let bucket = self.cstrings.entry(value).or_default();
         bucket.push(address);
         Ok(())
     }
@@ -588,9 +586,7 @@ impl BinArchive {
                 Ok(())
             }
             None => {
-                let mut bucket: Vec<String> = Vec::new();
-                bucket.push(label.to_owned());
-                self.labels.insert(address, bucket);
+                self.labels.insert(address, vec![label.to_owned()]);
                 Ok(())
             }
         }
@@ -662,7 +658,7 @@ impl BinArchive {
     }
 
     pub fn pointer_destinations(&self) -> HashSet<usize> {
-        self.pointers.values().map(|v| *v).collect()
+        self.pointers.values().copied().collect()
     }
 
     pub fn all_labels(&self) -> Vec<(usize, String)> {

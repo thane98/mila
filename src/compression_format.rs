@@ -3,6 +3,7 @@ use crate::{LZ10CompressionFormat, LZ13CompressionFormat};
 
 type Result<T> = std::result::Result<T, CompressionError>;
 
+#[derive(Clone)]
 pub enum CompressionFormat {
     LZ10(LZ10CompressionFormat),
     LZ13(LZ13CompressionFormat),

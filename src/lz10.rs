@@ -5,6 +5,7 @@ use crate::lz13::get_occurrence_length;
 
 type Result<T> = std::result::Result<T, CompressionError>;
 
+#[derive(Debug, Clone)]
 pub struct LZ10CompressionFormat;
 
 impl LZ10CompressionFormat {
@@ -19,7 +20,7 @@ impl LZ10CompressionFormat {
         buf.push(((bytes.len() >> 8) & 0xFF) as u8);
         buf.push(((bytes.len() >> 16) & 0xFF) as u8);
 
-        let mut out_buffer = vec![0; 8 * 2 + 1];
+        let mut out_buffer = [0; 8 * 2 + 1];
         let mut buffer_length = 1;
         let mut buffered_blocks = 0;
         let mut read_bytes = 0;
@@ -62,7 +63,7 @@ impl LZ10CompressionFormat {
     }
 
     pub fn decompress(&self, bytes: &[u8]) -> Result<Vec<u8>> {
-        match nintendo_lz::decompress_arr(&bytes) {
+        match nintendo_lz::decompress_arr(bytes) {
             Ok(decompressed_data) => Ok(decompressed_data),
             Err(_) => Err(CompressionError::InvalidInput("LZ10".to_string())),
         }

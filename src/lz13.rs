@@ -37,6 +37,7 @@ pub(crate) fn get_occurrence_length(
     (max_length as i32, disp)
 }
 
+#[derive(Debug, Clone)]
 pub struct LZ13CompressionFormat;
 
 impl LZ13CompressionFormat {
@@ -118,7 +119,7 @@ impl LZ13CompressionFormat {
         } else {
             let truncated_input = if bytes[0] == 0x13 { &bytes[4..] } else { bytes };
 
-            match decompress_arr(&truncated_input) {
+            match decompress_arr(truncated_input) {
                 Ok(decompressed_data) => Ok(decompressed_data),
                 Err(_) => Err(CompressionError::InvalidInput("LZ13".to_string())),
             }

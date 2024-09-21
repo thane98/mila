@@ -30,7 +30,7 @@ impl<'a> BinArchiveReader<'a> {
     }
 
     pub fn tell(&self) -> usize {
-        return self.position;
+        self.position
     }
 
     pub fn read_u8(&mut self) -> Result<u8> {
@@ -132,11 +132,11 @@ impl<'a> BinArchiveWriter<'a> {
     }
 
     pub fn tell(&self) -> usize {
-        return self.position;
+        self.position
     }
 
     pub fn length(&self) -> usize {
-        return self.archive.size();
+        self.archive.size()
     }
 
     pub fn allocate(&mut self, amount: usize, ge: bool) -> Result<()> {

@@ -111,17 +111,13 @@ fn read_color(reader: &mut BinArchiveReader) -> Result<[u8; 4]> {
     let mut arr: [u8; 4] = [0, 0, 0, 0];
     let bytes = reader.read_bytes(4)?;
     arr.copy_from_slice(&bytes);
-    let tmp = arr[2];
-    arr[2] = arr[0];
-    arr[0] = tmp;
+    arr.swap(2, 0);
     Ok(arr)
 }
 
 fn write_color(color: &[u8; 4], writer: &mut BinArchiveWriter) -> Result<()> {
-    let mut arr = color.clone();
-    let tmp = arr[2];
-    arr[2] = arr[0];
-    arr[0] = tmp;
+    let mut arr = *color;
+    arr.swap(2, 0);
     writer.write_bytes(&arr)
 }
 
@@ -561,6 +557,12 @@ impl AssetSpec {
 pub struct AssetBinary {
     pub flags: u32,
     pub specs: Vec<AssetSpec>,
+}
+
+impl Default for AssetBinary {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AssetBinary {

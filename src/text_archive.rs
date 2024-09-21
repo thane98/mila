@@ -79,11 +79,8 @@ impl TextArchive {
                 TextArchiveFormat::ShiftJIS => reader.read_shift_jis_string()?,
                 TextArchiveFormat::Unicode => reader.read_utf_16_string()?,
             };
-            match labels.first() {
-                Some(k) => {
-                    text_archive.entries.insert(k.clone(), message);
-                }
-                _ => {}
+            if let Some(k) = labels.first() {
+                text_archive.entries.insert(k.clone(), message);
             }
         }
         Ok(text_archive)
@@ -128,19 +125,16 @@ impl TextArchive {
     }
 
     pub fn delete_message(&mut self, key: &str) {
-        self.entries.remove(key);
+        self.entries.shift_remove(key);
     }
 
     pub fn get_message(&self, key: &str) -> Option<String> {
-        match self.entries.get(key) {
-            Some(value) => Some(value.replace("\n", "\\n")),
-            None => None,
-        }
+        self.entries.get(key).map(|value| value.replace('\n', "\\n"))
     }
 
     pub fn set_message(&mut self, key: &str, message: &str) {
         let message = message.replace("\\n", "\n");
-        let entry = self.entries.entry(key.to_string()).or_insert(String::new());
+        let entry = self.entries.entry(key.to_string()).or_default();
         *entry = message;
         self.dirty = true;
     }

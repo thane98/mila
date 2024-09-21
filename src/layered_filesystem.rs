@@ -4,20 +4,142 @@ use normpath::PathExt;
 use crate::text_archive::TextArchiveFormat;
 use crate::tpl::Tpl;
 use crate::{
-    arc, bch, cgfx, ctpk, Endian, FE9PathLocalizer, FE10PathLocalizer, LZ10CompressionFormat, LayeredFilesystemError,
-    TextArchive, Texture, fe9_arc,
+    arc, bch, cgfx, ctpk, fe9_arc, Endian, FE10PathLocalizer, FE9PathLocalizer,
+    LZ10CompressionFormat, LayeredFilesystemError, TextArchive, Texture,
 };
 use crate::{
     BinArchive, CompressionFormat, FE13PathLocalizer, FE14PathLocalizer, FE15PathLocalizer, Game,
     LZ13CompressionFormat, Language, PathLocalizer,
 };
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 type Result<T> = std::result::Result<T, LayeredFilesystemError>;
 
+#[derive(Debug, Clone)]
+pub enum FileSystemLayer {
+    Directory(String),
+}
+
+impl FileSystemLayer {
+    pub fn read(&self, path: &str) -> Result<Vec<u8>> {
+        match self {
+            FileSystemLayer::Directory(p) => {
+                std::fs::read(Path::new(p).join(path)).map_err(LayeredFilesystemError::IOError)
+            }
+        }
+    }
+
+    pub fn write(&self, path: &str, contents: &[u8]) -> Result<()> {
+        match self {
+            FileSystemLayer::Directory(p) => {
+                let full_path = Path::new(p).join(path);
+                if let Some(parent) = full_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(Path::new(p).join(path), contents)?
+            }
+        }
+        Ok(())
+    }
+
+    pub fn create_dir(&self, path: &str) -> Result<()> {
+        match self {
+            FileSystemLayer::Directory(p) => {
+                let full_path = Path::new(p).join(path);
+                std::fs::create_dir_all(full_path)?;
+                Ok(())
+            }
+        }
+    }
+
+    pub fn list(&self, path: &str, glob: Option<&str>) -> Result<Vec<String>> {
+        match self {
+            FileSystemLayer::Directory(p) => {
+                // TODO: Clean up this mess.
+                let mut layer_str = String::new();
+                layer_str.push_str(p);
+                layer_str.push(std::path::MAIN_SEPARATOR);
+                let full_path = Path::new(p).join(path);
+                if full_path.exists() {
+                    let mut canonical =
+                        full_path.normalize()?.into_path_buf().display().to_string();
+                    canonical.push(std::path::MAIN_SEPARATOR);
+
+                    let pattern = if let Some(p) = glob { p } else { "**/*" };
+                    let pattern = format!("{}{}", canonical, pattern);
+                    Ok(glob::glob(&pattern)?
+                        .filter_map(|r| r.ok())
+                        .map(|p| p.display().to_string().replace(&layer_str, ""))
+                        .collect())
+                } else {
+                    Ok(Default::default())
+                }
+            }
+        }
+    }
+
+    pub fn subdirectories(&self, path: &str) -> Result<Vec<String>> {
+        match self {
+            FileSystemLayer::Directory(p) => {
+                let mut layer_str = String::new();
+                layer_str.push_str(p);
+                layer_str.push(std::path::MAIN_SEPARATOR);
+                let full_path = Path::new(p).join(path);
+                if full_path.exists() {
+                    let mut canonical =
+                        full_path.normalize()?.into_path_buf().display().to_string();
+                    canonical.push(std::path::MAIN_SEPARATOR);
+                    let pattern = format!("{}*", canonical);
+                    Ok(glob::glob(&pattern)?
+                        .filter_map(|r| r.ok())
+                        .filter(|p| p.is_dir())
+                        .map(|p| p.display().to_string().replace(&layer_str, ""))
+                        .collect())
+                } else {
+                    Ok(Default::default())
+                }
+            }
+        }
+    }
+
+    pub fn file_exists(&self, path: &str) -> bool {
+        match self {
+            FileSystemLayer::Directory(p) => Path::new(p).join(path).is_file(),
+        }
+    }
+
+    pub fn directory_exists(&self, path: &str) -> bool {
+        match self {
+            FileSystemLayer::Directory(p) => Path::new(p).join(path).is_dir(),
+        }
+    }
+
+    pub fn exists(&self, path: &str) -> bool {
+        match self {
+            FileSystemLayer::Directory(p) => Path::new(p).join(path).exists(),
+        }
+    }
+
+    pub fn resolve(&self, path: &str) -> Option<PathBuf> {
+        match self {
+            FileSystemLayer::Directory(p) => {
+                let full_path = Path::new(p).join(path);
+                full_path.exists().then_some(full_path)
+            }
+        }
+    }
+
+    pub fn root(&self) -> &str {
+        match self {
+            FileSystemLayer::Directory(p) => p,
+        }
+    }
+}
+
 pub struct LayeredFilesystem {
-    layers: Vec<String>,
+    layers: Vec<FileSystemLayer>,
     compression_format: CompressionFormat,
     path_localizer: PathLocalizer,
     game: Game,
@@ -28,7 +150,15 @@ pub struct LayeredFilesystem {
 
 impl Clone for LayeredFilesystem {
     fn clone(&self) -> Self {
-        LayeredFilesystem::new(self.layers.clone(), self.language, self.game).unwrap()
+        LayeredFilesystem {
+            layers: self.layers.clone(),
+            compression_format: self.compression_format.clone(),
+            path_localizer: self.path_localizer,
+            game: self.game,
+            language: self.language,
+            endian: self.endian,
+            text_archive_format: self.text_archive_format,
+        }
     }
 }
 
@@ -79,10 +209,12 @@ impl LayeredFilesystem {
             _ => TextArchiveFormat::Unicode,
         };
 
-        let mut canonical_layers: Vec<String> = Vec::new();
+        let mut canonical_layers = Vec::new();
         for layer in &layers {
             let path = Path::new(layer);
-            canonical_layers.push(path.normalize()?.into_path_buf().display().to_string());
+            canonical_layers.push(FileSystemLayer::Directory(
+                path.normalize()?.into_path_buf().display().to_string(),
+            ));
         }
 
         Ok(LayeredFilesystem {
@@ -102,35 +234,28 @@ impl LayeredFilesystem {
         } else {
             path.to_string()
         };
-        let mut result: HashSet<String> = HashSet::new();
+        let mut result = HashSet::new();
         for layer in &self.layers {
-            let layer_path = Path::new(layer).join(path.to_string());
-            if layer_path.exists() && layer_path.is_dir() {
-                result.extend(self.list_dir(layer, &path, glob.clone())?.into_iter());
-            }
+            result.extend(layer.list(&path, glob)?);
         }
         let mut result: Vec<String> = result.into_iter().collect();
         result.sort();
         Ok(result)
     }
 
-    fn list_dir(&self, layer: &str, subdir: &str, glob: Option<&str>) -> Result<Vec<String>> {
-        // TODO: Clean up this mess.
-        let mut layer_str = String::new();
-        layer_str.push_str(layer);
-        layer_str.push(std::path::MAIN_SEPARATOR);
-        let mut path = PathBuf::new();
-        path.push(layer);
-        path.push(subdir);
-        let mut canonical = path.normalize()?.into_path_buf().display().to_string();
-        canonical.push(std::path::MAIN_SEPARATOR);
-
-        let pattern = if let Some(p) = glob { p } else { "**/*" };
-        let pattern = format!("{}{}", canonical, pattern);
-        Ok(glob::glob(&pattern)?
-            .filter_map(|r| r.ok())
-            .map(|p| p.display().to_string().replace(&layer_str, ""))
-            .collect())
+    pub fn subdirectories(&self, path: &str, localized: bool) -> Result<Vec<String>> {
+        let path = if localized {
+            self.path_localizer.localize(path, &self.language)?
+        } else {
+            path.to_string()
+        };
+        let mut result = HashSet::new();
+        for layer in &self.layers {
+            result.extend(layer.subdirectories(&path)?);
+        }
+        let mut result: Vec<String> = result.into_iter().collect();
+        result.sort();
+        Ok(result)
     }
 
     pub fn read(&self, path: &str, localized: bool) -> Result<Vec<u8>> {
@@ -141,18 +266,11 @@ impl LayeredFilesystem {
         };
         let mut attempted_paths: Vec<String> = Vec::new();
         for layer in self.layers.iter().rev() {
-            let path_buf = Path::new(layer).join(&actual_path);
-            attempted_paths.push(path_buf.display().to_string());
-            if path_buf.exists() {
-                let bytes = match std::fs::read(&path_buf) {
-                    Ok(b) => b,
-                    Err(err) => {
-                        return Err(LayeredFilesystemError::ReadError(
-                            actual_path.to_string(),
-                            err.to_string(),
-                        ))
-                    }
-                };
+            attempted_paths.push(layer.root().to_string());
+            if layer.file_exists(&actual_path) {
+                let bytes = layer.read(&actual_path).map_err(|err| {
+                    LayeredFilesystemError::ReadError(actual_path, err.to_string())
+                })?;
                 if self.compression_format.is_compressed_filename(path) {
                     return Ok(self.compression_format.decompress(&bytes)?);
                 } else {
@@ -166,6 +284,20 @@ impl LayeredFilesystem {
         ))
     }
 
+    pub fn exists(&self, path: &str, localized: bool) -> Result<bool> {
+        let actual_path = if localized {
+            self.path_localizer.localize(path, &self.language)?
+        } else {
+            path.to_string()
+        };
+        for layer in self.layers.iter().rev() {
+            if layer.exists(&actual_path) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn file_exists(&self, path: &str, localized: bool) -> Result<bool> {
         let actual_path = if localized {
             self.path_localizer.localize(path, &self.language)?
@@ -173,12 +305,48 @@ impl LayeredFilesystem {
             path.to_string()
         };
         for layer in self.layers.iter().rev() {
-            let path_buf = Path::new(layer).join(&actual_path);
-            if path_buf.exists() && path_buf.is_file() {
+            if layer.file_exists(&actual_path) {
                 return Ok(true);
             }
         }
         Ok(false)
+    }
+
+    pub fn directory_exists(&self, path: &str, localized: bool) -> Result<bool> {
+        let actual_path = if localized {
+            self.path_localizer.localize(path, &self.language)?
+        } else {
+            path.to_string()
+        };
+        for layer in self.layers.iter().rev() {
+            if layer.directory_exists(&actual_path) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    pub fn create_dir(&self, path: &str, localized: bool) -> Result<()> {
+        let actual_path = if localized {
+            self.path_localizer.localize(path, &self.language)?
+        } else {
+            path.to_string()
+        };
+        self.write_layer().create_dir(&actual_path)
+    }
+
+    pub fn resolve(&self, path: &str, localized: bool) -> Option<PathBuf> {
+        let actual_path = if localized {
+            self.path_localizer.localize(path, &self.language).ok()?
+        } else {
+            path.to_string()
+        };
+        for layer in self.layers.iter().rev() {
+            if let Some(full_path) = layer.resolve(&actual_path) {
+                return Some(full_path);
+            }
+        }
+        None
     }
 
     pub fn read_fe9_arc(&self, path: &str, localized: bool) -> Result<IndexMap<String, Vec<u8>>> {
@@ -243,32 +411,20 @@ impl LayeredFilesystem {
         } else {
             path.to_string()
         };
+
+        let contents = if self.compression_format.is_compressed_filename(path) {
+            Cow::Owned(self.compression_format.compress(bytes)?)
+        } else {
+            Cow::Borrowed(bytes)
+        };
+
         let layer = self
             .layers
             .last()
             .ok_or(LayeredFilesystemError::NoWriteableLayers)?;
-
-        let path_buf = Path::new(layer).join(&actual_path);
-        match path_buf.parent() {
-            Some(parent) => std::fs::create_dir_all(parent)?,
-            None => {}
-        }
-        if self.compression_format.is_compressed_filename(path) {
-            let contents = self.compression_format.compress(bytes)?;
-            self.write_with_error_handling(&path_buf, &contents)
-        } else {
-            self.write_with_error_handling(&path_buf, bytes)
-        }
-    }
-
-    fn write_with_error_handling(&self, path: &PathBuf, bytes: &[u8]) -> Result<()> {
-        match std::fs::write(path, bytes) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(LayeredFilesystemError::WriteError(
-                path.display().to_string(),
-                err.to_string(),
-            )),
-        }
+        layer
+            .write(&actual_path, &contents)
+            .map_err(|err| LayeredFilesystemError::WriteError(actual_path, err.to_string()))
     }
 
     pub fn write_archive(&self, path: &str, archive: &BinArchive, localized: bool) -> Result<()> {
@@ -300,6 +456,10 @@ impl LayeredFilesystem {
 
     pub fn text_archive_format(&self) -> TextArchiveFormat {
         self.text_archive_format
+    }
+
+    pub fn write_layer(&self) -> &FileSystemLayer {
+        &self.layers[self.layers.len() - 1]
     }
 }
 

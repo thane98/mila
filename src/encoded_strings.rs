@@ -53,11 +53,11 @@ where
     }
 
     let (result, _enc, errors) = UTF_16LE.decode(buffer.as_slice());
-    return if errors {
+    if errors {
         Err(EncodedStringsError::DecodingFailed("UTF-16".to_string()))
     } else {
         Ok(result.into())
-    };
+    }
 }
 
 impl EncodedStringReader for Cursor<&[u8]> {

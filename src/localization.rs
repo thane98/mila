@@ -76,8 +76,23 @@ impl NoOpPathLocalizer {
 }
 
 impl FE9PathLocalizer {
-    fn localize(&self, path: &str, _language: &Language) -> Result<String> {
-        Ok(path.to_string())
+    fn localize(&self, path: &str, language: &Language) -> Result<String> {
+        let mut result = String::new();
+        let path_info = Path::new(path);
+        let (dir_name, file_name) = get_parent_and_file_name(path_info)?;
+        result.push_str(&dir_name);
+        match language {
+            Language::Spanish => result.push_str("/s_"),
+            Language::German => result.push_str("/d_"),
+            Language::Italian => result.push_str("/i_"),
+            Language::French => result.push_str("/f_"),
+            Language::Japanese | Language::EnglishNA | Language::EnglishEU => result.push('/'),
+            _ => {
+                return Err(LocalizationError::UnsupportedLanguage);
+            }
+        }
+        result.push_str(&file_name);
+        Ok(result)
     }
 }
 
@@ -93,7 +108,7 @@ impl FE10PathLocalizer {
             Language::German => result.push_str("/d_"),
             Language::Italian => result.push_str("/i_"),
             Language::French => result.push_str("/f_"),
-            Language::Japanese => result.push_str("/"),
+            Language::Japanese => result.push('/'),
             _ => {
                 return Err(LocalizationError::UnsupportedLanguage);
             }
@@ -112,7 +127,7 @@ impl FE13PathLocalizer {
         match language {
             Language::EnglishNA => result.push_str("/E/"),
             Language::EnglishEU => result.push_str("/U/"),
-            Language::Japanese => result.push_str("/"),
+            Language::Japanese => result.push('/'),
             Language::Spanish => result.push_str("/S/"),
             Language::French => result.push_str("/F/"),
             Language::German => result.push_str("/G/"),
@@ -135,7 +150,7 @@ impl FE14PathLocalizer {
         match language {
             Language::EnglishNA => result.push_str("/@E/"),
             Language::EnglishEU => result.push_str("/@U/"),
-            Language::Japanese => result.push_str("/"),
+            Language::Japanese => result.push('/'),
             Language::Spanish => result.push_str("/@S/"),
             Language::French => result.push_str("/@F/"),
             Language::German => result.push_str("/@G/"),

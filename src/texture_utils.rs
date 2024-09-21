@@ -17,8 +17,7 @@ pub fn block_to_sequential(
     let num_blocks_in_texture = (texture_width * texture_height) / block_size;
 
     // Rearrange.
-    let mut sequential: Vec<u8> = Vec::new();
-    sequential.resize(texture_width * texture_height, 0);
+    let mut sequential: Vec<u8> = vec![0; texture_width * texture_height];
     for block_number in 0..num_blocks_in_texture {
         let block_row = block_number / num_blocks_in_row;
         let block_column = block_number % num_blocks_in_row;
