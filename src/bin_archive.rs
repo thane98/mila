@@ -1,6 +1,7 @@
 use crate::encoded_strings::{to_shift_jis, EncodedStringReader};
 use crate::errors::ArchiveError;
 use crate::{Endian, EndianAwareReader, EndianAwareWriter};
+use encoding_rs::SHIFT_JIS;
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -283,7 +284,13 @@ impl BinArchive {
 
         let mut raw_cstrings: Vec<u8> = Vec::new();
         let mut offset_tracker: HashMap<String, usize> = HashMap::new();
-        cstrings.sort_by(|a, b| a.0.cmp(b.0));
+        cstrings.sort_by(|a, b| {
+            let text_a = a.0;
+            let text_b = b.0;
+            let (bytes_a, _, _) = SHIFT_JIS.encode(text_a);
+            let (bytes_b, _, _) = SHIFT_JIS.encode(text_b);
+            bytes_a.cmp(&bytes_b)
+        });
         for (text, addresses) in cstrings {
             let offset = add_text(&mut raw_cstrings, &mut offset_tracker, text)?;
             let text_address = self.data.len() + offset;
