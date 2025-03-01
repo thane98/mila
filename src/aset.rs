@@ -2,7 +2,7 @@ use crate::{ArchiveError, BinArchive, BinArchiveReader, BinArchiveWriter, Endian
 
 type Result<T> = std::result::Result<T, ArchiveError>;
 
-pub const ANIMATION_NAMES: &[&str] = &[
+pub const FE14_ANIMATION_NAMES: &[&str] = &[
     "label",
     "ready",
     "idle_normal",
@@ -262,43 +262,140 @@ pub const ANIMATION_NAMES: &[&str] = &[
     "none2",
 ];
 
-pub struct FE14ASet {
+pub const FE15_ANIMATION_NAMES: &[&str] = &[
+    "label",
+    "IdleNormal",
+    "IdleDying",
+    "Attack1a",
+    "Attack1b",
+    "Attack2a",
+    "Attack3a",
+    "AttackT",
+    "AttackC",
+    "AttackF",
+    "CounterN",
+    "CounterE",
+    "Backstep",
+    "Charge",
+    "Thanks",
+    "Die",
+    "Discharge",
+    "DmgHig1",
+    "DmgHig2",
+    "DmgMid1",
+    "DmgMid2",
+    "DmgNon",
+    "Repelled",
+    "Run",
+    "EvasionB",
+    "EvasionL",
+    "EvasionR",
+    "TurnL",
+    "TurnR",
+    "Shoot",
+    "ShootC",
+    "Start",
+    "Win",
+    "Special1",
+    "Final",
+    "予備3",
+    "予備4",
+    "予備5",
+    "TriangleA",
+    "TriangleB",
+    "TriangleC",
+    "IdleNormalD",
+    "WalkD",
+    "RunD",
+    "DashD",
+    "TackleD",
+    "StopD",
+    "FindD",
+    "Attack1D",
+    "Attack2D",
+    "Attack3D",
+    "Attack4D",
+    "Attack5D",
+    "IdleStartD",
+    "ClassChange",
+    "EnterD",
+    "Jump1D",
+    "Jump2D",
+    "Jump3D",
+    "Unused1",
+    "Unused2",
+    "Unused3",
+    "Unused4",
+    "Unused5",
+    "Unused6",
+    "S01_OP_A",
+    "S01_OP_B",
+    "Unused7",
+    "S02_EV01_A",
+    "Unused8",
+    "S03_BT01_A",
+    "S03_BT01_B",
+    "Unused9",
+    "S03_BT02_A",
+    "S03_BT02_B",
+    "Unused10",
+    "S05_EV_A",
+    "S05_EV_B",
+    "S05_EV_C",
+    "Unused11",
+    "S05_EV02_A",
+    "S05_EV02_B",
+    "Unused12",
+    "S05_EV03_A",
+    "S05_EV03_B",
+    "S05_EV03_C",
+    "Unused13",
+    "S05_EV04_A",
+    "Unused14",
+    "T01_A",
+    "T01_B",
+    "Unused15",
+    "T02_A",
+    "T02_B",
+    "Unused16",
+    "S00_END_A",
+    "S00_END_B",
+];
+
+pub struct ASetFile {
+    pub meta: Option<String>,
     pub anim_clip_table: Vec<Option<String>>,
     pub sets: Vec<Vec<Option<String>>>,
 }
 
-impl Default for FE14ASet {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl FE14ASet {
-    pub fn new() -> Self {
-        FE14ASet {
+impl ASetFile {
+    pub fn new(meta: Option<String>) -> Self {
+        ASetFile {
+            meta,
             anim_clip_table: Vec::new(),
             sets: Vec::new(),
         }
     }
 
     pub fn from_archive(archive: &BinArchive) -> Result<Self> {
-        let mut aset = FE14ASet::new();
         let mut reader = BinArchiveReader::new(archive, 0);
+        reader.skip(4);
+
         let anim_clip_table_address =
             archive
                 .find_label_address("AnimClipNameTable")
                 .ok_or_else(|| {
-                    ArchiveError::OtherError(
-                        "Bad aset file: no AnimClipTable label.".to_string(),
-                    )
+                    ArchiveError::OtherError("Bad aset file: no AnimClipTable label.".to_string())
                 })?;
+
+        let mut aset = ASetFile::new(reader.read_string()?);
 
         // Read anim clip table
         reader.seek(anim_clip_table_address);
         for _ in 0..257 {
             aset.anim_clip_table.push(reader.read_string()?);
         }
-        
+
         // Read animation sets.
         while reader.tell() < archive.size() {
             let mut set = Vec::new();
@@ -321,7 +418,6 @@ impl FE14ASet {
                     }
                 }
             }
-            debug_assert!(set.len() == ANIMATION_NAMES.len());
             aset.sets.push(set);
         }
 
@@ -333,7 +429,7 @@ impl FE14ASet {
         let mut archive = BinArchive::new(Endian::Little);
         archive.allocate_at_end(12);
         archive.write_u32(0, 4)?;
-        archive.write_string(4, Some("2015/04/01 14:07:41 t_ozawa"))?;
+        archive.write_string(4, self.meta.as_deref())?;
         archive.write_u32(8, 0x100)?;
 
         // Write the anim clip table.
@@ -347,7 +443,6 @@ impl FE14ASet {
         // Write the animation sets.
         for set in &self.sets {
             // Generate the flags.
-            debug_assert!(set.len() == ANIMATION_NAMES.len());
             let mut main_flags = 0;
             let mut flags_to_write = 0;
             let mut strings_to_write = 0;
@@ -356,7 +451,11 @@ impl FE14ASet {
                 let mut set_flags = 0;
                 for bit in 0..32 {
                     let index = flag_set * 32 + bit + 1;
-                    if set[index].is_some() {
+                    let present = set
+                        .get(index)
+                        .map(|entry| entry.is_some())
+                        .unwrap_or_default();
+                    if present {
                         set_flags |= 1 << bit;
                         strings_to_write += 1;
                     }
@@ -374,12 +473,12 @@ impl FE14ASet {
                 writer.write_label(label)?;
             }
             writer.write_u32(main_flags)?;
-            for i in 0..8 {
-                if compiled_flags[i] != 0 {
-                    writer.write_u32(compiled_flags[i])?;
+            for (i, flag) in compiled_flags.iter().enumerate().take(8) {
+                if *flag != 0 {
+                    writer.write_u32(*flag)?;
                     for j in 0..32 {
                         let index = i * 32 + j + 1;
-                        if let Some(v) = &set[index] {
+                        if let Some(v) = set.get(index).and_then(|entry| entry.as_deref()) {
                             writer.write_string(Some(v))?;
                         }
                     }
@@ -399,7 +498,7 @@ mod test {
     fn round_trip() {
         let file = load_test_file("FE14Aset_Test.bin");
         let archive = BinArchive::from_bytes(&file, Endian::Little).unwrap();
-        let aset = FE14ASet::from_archive(&archive);
+        let aset = ASetFile::from_archive(&archive);
         assert!(aset.is_ok());
         let aset = aset.unwrap();
         let bytes = aset.serialize().unwrap();

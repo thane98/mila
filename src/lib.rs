@@ -23,7 +23,7 @@ pub mod bch;
 pub mod cgfx;
 pub mod ctpk;
 pub mod fe9_arc;
-pub mod fe14_aset;
+pub mod aset;
 pub mod tpl;
 
 #[cfg(test)]
@@ -38,7 +38,7 @@ pub use compression_format::CompressionFormat;
 pub use encoded_strings::EncodedStringReader;
 pub use endian_aware_io::Endian;
 pub use etc1::decode;
-pub use fe14_aset::FE14ASet;
+pub use aset::ASetFile;
 pub use game::Game;
 pub use language::Language;
 pub use layered_filesystem::LayeredFilesystem;
