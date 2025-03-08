@@ -1,6 +1,7 @@
 use crate::errors::CompressionError;
 use nintendo_lz::decompress_arr;
 use std::cmp::min;
+use std::num::Wrapping;
 
 type Result<T> = std::result::Result<T, CompressionError>;
 
@@ -37,6 +38,61 @@ pub(crate) fn get_occurrence_length(
     (max_length as i32, disp)
 }
 
+// Based on https://github.com/VelouriasMoon/FE3D/blob/main/FE3D/LZ13.cs
+fn calculate_lz13_header(bytes: &[u8]) -> Result<usize> {
+    let mut max_lead = Wrapping(0i32);
+    let mut sp = Wrapping(0i32);
+    let mut buffer_length = Wrapping(9i32);
+    let mut fc = Wrapping(0i32);
+
+    while (sp.0 as usize) < bytes.len() {
+        let mut length = Wrapping(1i32);
+        let mut x = Wrapping(sp.0.min(4096));
+
+        while x.0 >= 2 {
+            let mut y = sp;
+            while (y.0 as usize) < bytes.len() && bytes[y.0 as usize] == bytes[(y - x).0 as usize] {
+                y += 1;
+            }
+            y -= sp;
+            if y.0 >= 3 && y > length {
+                length = y;
+            }
+            x -= 1;
+        }
+
+        if length.0 == 1 {
+            buffer_length += 1;
+            sp += 1;
+        } else {
+            sp += length;
+
+            if length.0 <= 2 {
+                return Err(CompressionError::InvalidInput(
+                    "Failed to compute LZ13 header".to_string(),
+                ));
+            } else if length.0 <= 0x10 {
+                buffer_length += 1;
+            } else if length.0 <= 0x110 {
+                buffer_length += 2;
+            } else {
+                buffer_length += 3;
+            }
+            buffer_length += 1;
+        }
+
+        max_lead = max_lead.max(sp - buffer_length);
+
+        fc += 1;
+        if fc.0 == 8 {
+            buffer_length += 1;
+            fc = Wrapping(0i32);
+        }
+    }
+
+    Ok((max_lead + buffer_length).0 as usize)
+}
+
 #[derive(Debug, Clone)]
 pub struct LZ13CompressionFormat;
 
@@ -49,7 +105,7 @@ impl LZ13CompressionFormat {
         // First, create the header.
         let mut result: Vec<u8> = Vec::new();
         let length = bytes.len();
-        let lz13_length = bytes.len() + 1;
+        let lz13_length = calculate_lz13_header(bytes)?;
         result.reserve(9 + length + ((length - 1) >> 3)); // For performance, reserve space to avoid resizing.
         result.push(0x13);
         result.push((lz13_length & 0xFF) as u8);
@@ -149,6 +205,6 @@ mod test {
         let lz13 = LZ13CompressionFormat {};
         let actual_compressed = lz13.compress(&decompressed);
         assert!(actual_compressed.is_ok());
-        assert_eq!(actual_compressed.unwrap(), compressed);
+        assert_eq!(&actual_compressed.unwrap(), &compressed);
     }
 }

@@ -57,15 +57,15 @@ mod test {
     #[test]
     fn arc_from_bytes_test() {
         let raw_arc = load_test_file("ArcTest.arc");
-        let test_file_1 = load_test_file("LZ13Test.bin");
-        let test_file_2 = load_test_file("LZ13Test.bin.lz");
+        let test_file_1 = load_test_file("ArcTest1.bin");
+        let test_file_2 = load_test_file("ArcTest1.bin.lz");
         let result = super::from_bytes(&raw_arc);
         assert!(result.is_ok());
         let files = result.unwrap();
         assert_eq!(2, files.len());
-        assert!(files.contains_key("LZ13Test.bin"));
-        assert!(files.contains_key("LZ13Test.bin.lz"));
-        assert_eq!(&test_file_1, files.get("LZ13Test.bin").unwrap());
-        assert_eq!(&test_file_2, files.get("LZ13Test.bin.lz").unwrap());
+        assert!(files.contains_key("ArcTest1.bin"));
+        assert!(files.contains_key("ArcTest1.bin.lz"));
+        assert_eq!(&test_file_1, files.get("ArcTest1.bin").unwrap());
+        assert_eq!(&test_file_2, files.get("ArcTest1.bin.lz").unwrap());
     }
 }
